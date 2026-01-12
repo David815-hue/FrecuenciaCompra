@@ -175,11 +175,9 @@ function App() {
       </div>
 
       {/* Glass Header / Sync Status */}
-      <header className="fixed top-0 w-full z-40 px-6 py-4 pointer-events-none">
+      <header className="absolute top-0 w-full z-40 px-6 py-4 pointer-events-none">
         <div className="max-w-[1920px] mx-auto flex justify-end">
-          <motion.div
-            initial={{ y: -50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
+          <div
             className="flex items-center gap-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/50 dark:border-slate-800 shadow-sm px-2 py-1.5 pr-4 rounded-full pointer-events-auto transition-colors duration-500"
           >
             {/* Theme Toggle */}
@@ -224,7 +222,7 @@ function App() {
                 </button>
               )}
             </div>
-          </motion.div>
+          </div>
         </div>
       </header>
 

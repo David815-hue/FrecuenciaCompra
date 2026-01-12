@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import MonthVisualizer from './MonthVisualizer';
 import ProductDetailsModal from './ProductDetailsModal';
@@ -11,6 +11,14 @@ const Dashboard = ({ data, onBack }) => {
     const [query, setQuery] = useState('');
     const [onlyRecurring, setOnlyRecurring] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(null);
+
+    // New filter states
+    const [selectedCities, setSelectedCities] = useState([]);
+    const [minQuantity, setMinQuantity] = useState('');
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const RECORDS_PER_PAGE = 50;
 
     // 1. Filter Data (Search)
     const filteredData = useMemo(() => {
@@ -44,18 +52,53 @@ const Dashboard = ({ data, onBack }) => {
         return Object.values(map);
     }, [filteredData]);
 
-    // 3. Apply Recurring Filter
+    // 3. Apply Filters (City, Quantity, Recurring)
     const displayList = useMemo(() => {
         if (!query || query.trim().length < 3) {
             return [];
         }
 
         let list = customers;
+
+        // Apply City Filter
+        if (selectedCities.length > 0) {
+            list = list.filter(c => selectedCities.includes(c.city));
+        }
+
+        // Apply Quantity Filter (only if min is set)
+        if (minQuantity !== '') {
+            const min = parseInt(minQuantity);
+
+            list = list.filter(c => {
+                // Calculate total quantity across all orders for any matching SKU in their items
+                let totalQuantity = 0;
+                c.orders.forEach(order => {
+                    order.items?.forEach(item => {
+                        totalQuantity += item.quantity || 0;
+                    });
+                });
+                return totalQuantity >= min;
+            });
+        }
+
+        // Apply Recurring Filter
         if (onlyRecurring) {
             list = list.filter(c => c.orders.length > 1);
         }
+
         return list;
-    }, [customers, onlyRecurring, query]);
+    }, [customers, selectedCities, minQuantity, onlyRecurring, query]);
+
+    // 5. Pagination calculations
+    const totalPages = Math.ceil(displayList.length / RECORDS_PER_PAGE);
+    const startIndex = (currentPage - 1) * RECORDS_PER_PAGE;
+    const endIndex = startIndex + RECORDS_PER_PAGE;
+    const paginatedList = displayList.slice(startIndex, endIndex);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [query, selectedCities, minQuantity, onlyRecurring]);
 
     // 4. Calculate Global Date Range
     const dateRange = useMemo(() => {
@@ -211,6 +254,80 @@ const Dashboard = ({ data, onBack }) => {
                         </button>
                     </div>
                 </div>
+
+                {/* Advanced Filters Section */}
+                {query.length >= 3 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="px-4 flex flex-col md:flex-row gap-4 items-start md:items-center"
+                    >
+                        {/* City Filter */}
+                        <div className="flex flex-col gap-2 w-full md:w-auto">
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <MapPin size={12} />
+                                Ciudad
+                            </label>
+                            <div className="flex gap-2">
+                                {['TEGUCIGALPA D.C.', 'SAN PEDRO SULA'].map(city => (
+                                    <button
+                                        key={city}
+                                        onClick={() => {
+                                            if (selectedCities.includes(city)) {
+                                                setSelectedCities(selectedCities.filter(c => c !== city));
+                                            } else {
+                                                setSelectedCities([...selectedCities, city]);
+                                            }
+                                        }}
+                                        className={`
+                                            px-4 py-2 rounded-full text-sm font-semibold transition-all border
+                                            ${selectedCities.includes(city)
+                                                ? 'bg-indigo-50 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 shadow-sm'
+                                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600'}
+                                        `}
+                                    >
+                                        {city === 'TEGUCIGALPA D.C.' ? 'Tegucigalpa' : 'San Pedro Sula'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Quantity Filter */}
+                        <div className="flex flex-col gap-2 w-full md:w-auto">
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <ShoppingBag size={12} />
+                                Cantidad Mínima
+                            </label>
+                            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="Ej: 5"
+                                    value={minQuantity}
+                                    onChange={(e) => setMinQuantity(e.target.value)}
+                                    className="w-20 bg-transparent outline-none text-slate-700 dark:text-slate-200 text-sm font-semibold placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                                />
+                                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">unidades</span>
+                            </div>
+                        </div>
+
+                        {/* Clear Filters Button */}
+                        {(selectedCities.length > 0 || minQuantity !== '') && (
+                            <motion.button
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                onClick={() => {
+                                    setSelectedCities([]);
+                                    setMinQuantity('');
+                                }}
+                                className="flex items-center gap-1.5 px-4 py-2 mt-6 md:mt-0 md:ml-auto bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-full text-sm font-semibold transition-all border border-rose-200 dark:border-rose-500/30"
+                            >
+                                <X size={14} />
+                                Limpiar Filtros
+                            </motion.button>
+                        )}
+                    </motion.div>
+                )}
             </header>
 
             {/* Table Area */}
@@ -221,7 +338,7 @@ const Dashboard = ({ data, onBack }) => {
                             <tr className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
                                 <th className="px-8 py-6 w-[22rem]">Cliente</th>
                                 <th className="px-6 py-6 w-56">Identidad</th>
-                                <th className="px-6 py-6 w-48 text-right">Inversión Total</th>
+                                <th className="px-6 py-6 w-48 text-right">Total</th>
                                 <th className="px-6 py-6 min-w-[300px]">
                                     <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity cursor-help" title="Mapa de calor de compras mensuales">
                                         <Calendar size={14} />
@@ -234,7 +351,7 @@ const Dashboard = ({ data, onBack }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                            {displayList.map((customer, idx) => (
+                            {paginatedList.map((customer, idx) => (
                                 <tr
                                     key={`${customer.name}-${idx}`}
                                     className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group relative"
@@ -331,6 +448,108 @@ const Dashboard = ({ data, onBack }) => {
                     </table>
                 </div>
             </div>
+
+            {/* Pagination Controls */}
+            {displayList.length > 0 && totalPages > 1 && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 mb-8"
+                >
+                    {/* Page Info */}
+                    <div className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+                        Mostrando <span className="font-bold text-slate-900 dark:text-white">{startIndex + 1}</span> a{' '}
+                        <span className="font-bold text-slate-900 dark:text-white">{Math.min(endIndex, displayList.length)}</span> de{' '}
+                        <span className="font-bold text-slate-900 dark:text-white">{displayList.length}</span> resultados
+                    </div>
+
+                    {/* Pagination Buttons */}
+                    <div className="flex items-center gap-2">
+                        {/* Previous Button */}
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
+
+                        {/* Page Numbers */}
+                        <div className="flex gap-1">
+                            {(() => {
+                                const pages = [];
+                                const showPages = 5; // Max page buttons to show
+                                let startPage = Math.max(1, currentPage - Math.floor(showPages / 2));
+                                let endPage = Math.min(totalPages, startPage + showPages - 1);
+
+                                // Adjust start if we're near the end
+                                if (endPage - startPage < showPages - 1) {
+                                    startPage = Math.max(1, endPage - showPages + 1);
+                                }
+
+                                // First page + ellipsis
+                                if (startPage > 1) {
+                                    pages.push(
+                                        <button
+                                            key={1}
+                                            onClick={() => setCurrentPage(1)}
+                                            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                                        >
+                                            1
+                                        </button>
+                                    );
+                                    if (startPage > 2) {
+                                        pages.push(<span key="ellipsis1" className="px-2 text-slate-400 dark:text-slate-600">...</span>);
+                                    }
+                                }
+
+                                // Page buttons
+                                for (let i = startPage; i <= endPage; i++) {
+                                    pages.push(
+                                        <button
+                                            key={i}
+                                            onClick={() => setCurrentPage(i)}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${currentPage === i
+                                                    ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
+                                                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                }`}
+                                        >
+                                            {i}
+                                        </button>
+                                    );
+                                }
+
+                                // Ellipsis + last page
+                                if (endPage < totalPages) {
+                                    if (endPage < totalPages - 1) {
+                                        pages.push(<span key="ellipsis2" className="px-2 text-slate-400 dark:text-slate-600">...</span>);
+                                    }
+                                    pages.push(
+                                        <button
+                                            key={totalPages}
+                                            onClick={() => setCurrentPage(totalPages)}
+                                            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                                        >
+                                            {totalPages}
+                                        </button>
+                                    );
+                                }
+
+                                return pages;
+                            })()}
+                        </div>
+
+                        {/* Next Button */}
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                            className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                            <ChevronRight size={18} />
+                        </button>
+                    </div>
+                </motion.div>
+            )}
 
             {/* Product Details Modal */}
             <ProductDetailsModal

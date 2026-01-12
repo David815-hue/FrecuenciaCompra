@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { format, parseISO, isValid, addMonths, startOfMonth, isSameMonth, differenceInMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const MonthVisualizer = ({ orders, minDate, maxDate }) => {
+const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     const [hoveredMonth, setHoveredMonth] = useState(null);
 
     // Generate linear timeline of months from minDate to maxDate
@@ -54,13 +54,19 @@ const MonthVisualizer = ({ orders, minDate, maxDate }) => {
         if (!count) return 'bg-slate-50 text-slate-300 border-r border-slate-100 hover:bg-slate-100';
 
         // 1 purchase: Green (Good start)
-        if (count === 1) return 'bg-emerald-300 text-emerald-900 font-bold border-r border-emerald-400/20';
+        if (count === 1) return 'bg-emerald-300 text-emerald-900 font-bold border-r border-emerald-400/20 hover:bg-emerald-400 cursor-pointer';
 
         // 2-3 purchases: Orange/Amber (Getting interesting)
-        if (count <= 3) return 'bg-amber-400 text-amber-950 font-bold border-r border-amber-500/20';
+        if (count <= 3) return 'bg-amber-400 text-amber-950 font-bold border-r border-amber-500/20 hover:bg-amber-500 cursor-pointer';
 
         // 4+ purchases: Red/Rose (Hot/High Frequency - "Compro bastante")
-        return 'bg-rose-600 text-white font-bold shadow-inner border-r border-rose-700/20';
+        return 'bg-rose-600 text-white font-bold shadow-inner border-r border-rose-700/20 hover:bg-rose-700 cursor-pointer';
+    };
+
+    const handleMonthClick = (key, data) => {
+        if (onClick && data && data.count > 0) {
+            onClick(key, data);
+        }
     };
 
     return (
@@ -81,12 +87,14 @@ const MonthVisualizer = ({ orders, minDate, maxDate }) => {
                     <div
                         key={key}
                         className={`
-                            relative flex-1 h-8 flex items-center justify-center text-[10px] transition-all cursor-default group first:rounded-l-lg last:rounded-r-lg
+                            relative flex-1 h-8 flex items-center justify-center text-[10px] transition-all group first:rounded-l-lg last:rounded-r-lg
                             ${getIntensityClass(count)}
                             ${isHovered ? 'z-20 scale-110 shadow-lg ring-2 ring-indigo-500 rounded-lg' : 'z-0'}
+                            ${count > 0 ? 'active:scale-95' : 'cursor-default'}
                         `}
                         onMouseEnter={() => setHoveredMonth(key)}
                         onMouseLeave={() => setHoveredMonth(null)}
+                        onClick={() => handleMonthClick(key, data)}
                     >
                         {/* Label */}
                         <span className="relative z-10 flex flex-col items-center leading-none">
@@ -109,6 +117,9 @@ const MonthVisualizer = ({ orders, minDate, maxDate }) => {
                                 </div>
                                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                                     <ProductSummary items={data.items} />
+                                </div>
+                                <div className="mt-2 pt-2 border-t border-white/10 text-center">
+                                    <span className="text-indigo-300 text-[10px] font-medium">🖱️ Haz clic para ver detalles completos</span>
                                 </div>
                                 {/* Arrow */}
                                 <div className="absolute top-full right-4 border-8 border-transparent border-t-slate-900/95"></div>

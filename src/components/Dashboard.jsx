@@ -2,11 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { Search, Download, Filter, ShoppingBag, ArrowLeft } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import MonthVisualizer from './MonthVisualizer';
+import ProductDetailsModal from './ProductDetailsModal';
 import { motion } from 'framer-motion';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const Dashboard = ({ data, onBack }) => {
     const [query, setQuery] = useState('');
     const [onlyRecurring, setOnlyRecurring] = useState(false); // Default to showing all customers
+    const [selectedMonth, setSelectedMonth] = useState(null); // Modal state
 
     // 1. Filter Data (Search)
     const filteredData = useMemo(() => {
@@ -94,6 +98,23 @@ const Dashboard = ({ data, onBack }) => {
 
     const handleExport = () => {
         exportToExcel(displayList, query);
+    };
+
+    const handleMonthClick = (customer) => (monthKey, monthData) => {
+        // Format month label
+        const monthLabel = format(monthData.date, 'MMMM yyyy', { locale: es });
+
+        setSelectedMonth({
+            customerName: customer.name,
+            monthLabel: monthLabel,
+            orderCount: monthData.count,
+            items: monthData.items,
+            monthKey: monthKey
+        });
+    };
+
+    const handleCloseModal = () => {
+        setSelectedMonth(null);
     };
 
     return (
@@ -215,7 +236,12 @@ const Dashboard = ({ data, onBack }) => {
                                         L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </td>
                                     <td className="px-6 py-4 align-top">
-                                        <MonthVisualizer orders={customer.orders} minDate={dateRange.min} maxDate={dateRange.max} />
+                                        <MonthVisualizer
+                                            orders={customer.orders}
+                                            minDate={dateRange.min}
+                                            maxDate={dateRange.max}
+                                            onClick={handleMonthClick(customer)}
+                                        />
                                     </td>
                                 </tr>
                             ))}
@@ -251,6 +277,16 @@ const Dashboard = ({ data, onBack }) => {
                     </table>
                 </div>
             </div>
+
+            {/* Product Details Modal */}
+            <ProductDetailsModal
+                isOpen={selectedMonth !== null}
+                onClose={handleCloseModal}
+                customerName={selectedMonth?.customerName || ''}
+                monthLabel={selectedMonth?.monthLabel || ''}
+                orderCount={selectedMonth?.orderCount || 0}
+                items={selectedMonth?.items || []}
+            />
         </div>
     );
 };

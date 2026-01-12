@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, X } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, X, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const FileUpload = ({ onFilesUploaded }) => {
@@ -21,22 +21,36 @@ const FileUpload = ({ onFilesUploaded }) => {
     };
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
+        <div className="relative w-full max-w-5xl mx-auto px-6">
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="max-w-4xl w-full bg-white rounded-3xl shadow-xl p-12 border border-slate-100"
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 p-12 border border-white/50 relative overflow-hidden"
             >
-                <div className="text-center mb-10">
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent mb-4">
-                        Análisis de Frecuencia de Compra
+                {/* Decoration */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-bl-[100%] -mr-10 -mt-10 z-0 opacity-50" />
+
+                <div className="relative z-10 text-center mb-12">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.2, duration: 0.5 }}
+                        className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-6 shadow-sm border border-indigo-100"
+                    >
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                        v2.0 Dashboard Nuevo
+                    </motion.div>
+
+                    <h1 className="text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
+                        Reporte de <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Frecuencia y Recurrencia</span>
                     </h1>
-                    <p className="text-slate-500 text-lg">
-                        Sube los archivos de Albatross y RMS para comenzar el análisis.
+                    <p className="text-slate-500 text-lg max-w-2xl mx-auto leading-relaxed">
+                        Sube tus archivos de datos para generar visualizaciones avanzadas sobre el comportamiento de tus clientes.
                     </p>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-8 mb-10">
+                <div className="grid md:grid-cols-2 gap-8 mb-12">
                     {/* Albatross Upload */}
                     <UploadCard
                         title="Archivo Albatross"
@@ -44,6 +58,7 @@ const FileUpload = ({ onFilesUploaded }) => {
                         file={albatrossFile}
                         onChange={(e) => handleFileChange(e, 'albatross')}
                         onClear={() => setAlbatrossFile(null)}
+                        idx={0}
                     />
 
                     {/* RMS Upload */}
@@ -53,72 +68,113 @@ const FileUpload = ({ onFilesUploaded }) => {
                         file={rmsFile}
                         onChange={(e) => handleFileChange(e, 'rms')}
                         onClear={() => setRmsFile(null)}
+                        idx={1}
                     />
                 </div>
 
                 <div className="flex justify-center">
                     <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        whileHover={{ scale: 1.02, translateY: -2 }}
+                        whileTap={{ scale: 0.98 }}
                         onClick={handleProcess}
                         disabled={!albatrossFile || !rmsFile}
                         className={`
-              px-10 py-4 rounded-full font-bold text-lg shadow-lg transition-all
-              ${albatrossFile && rmsFile
-                                ? 'bg-gradient-to-r from-primary to-indigo-600 text-white cursor-pointer shadow-indigo-200'
-                                : 'bg-slate-200 text-slate-400 cursor-not-allowed'}
-            `}
+                            group relative px-12 py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-500/20 transition-all flex items-center gap-3 overflow-hidden
+                            ${albatrossFile && rmsFile
+                                ? 'bg-slate-900 text-white cursor-pointer hover:shadow-indigo-500/40'
+                                : 'bg-slate-100 text-slate-400 cursor-not-allowed'}
+                        `}
                     >
-                        Procesar Datos
+                        <span className="relative z-10">Procesar Información</span>
+                        {albatrossFile && rmsFile && <ArrowRight className="relative z-10 group-hover:translate-x-1 transition-transform" size={20} />}
+
+                        {/* Button Shine Effect */}
+                        {albatrossFile && rmsFile && (
+                            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent z-0" />
+                        )}
                     </motion.button>
                 </div>
             </motion.div>
+
+            <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}
+                className="text-center text-slate-400 text-xs mt-8 font-medium"
+            >
+                Seguro • Privado • Procesamiento Local
+            </motion.p>
         </div>
     );
 };
 
-const UploadCard = ({ title, description, file, onChange, onClear }) => {
+const UploadCard = ({ title, description, file, onChange, onClear, idx }) => {
     return (
-        <div className={`
-      relative rounded-2xl border-2 border-dashed transition-all p-8 flex flex-col items-center text-center group
-      ${file ? 'border-emerald-400 bg-emerald-50/50' : 'border-slate-200 hover:border-primary hover:bg-slate-50'}
-    `}>
-            <AnimatePresence>
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 + (idx * 0.1), duration: 0.5 }}
+            className={`
+                relative h-64 rounded-3xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center text-center group overflow-hidden
+                ${file
+                    ? 'border-emerald-400/50 bg-emerald-50/30'
+                    : 'border-slate-200 hover:border-indigo-400/50 hover:bg-indigo-50/30 bg-white/50'}
+            `}
+        >
+            <AnimatePresence mode="wait">
                 {file ? (
                     <motion.div
+                        key="file-uploaded"
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="flex flex-col items-center"
+                        exit={{ scale: 0.8, opacity: 0 }}
+                        className="flex flex-col items-center relative z-10 px-8 w-full"
                     >
-                        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 text-emerald-600">
-                            <CheckCircle size={32} />
-                        </div>
-                        <h3 className="font-semibold text-slate-800 text-lg mb-1 truncate max-w-[250px]">{file.name}</h3>
-                        <p className="text-emerald-600 text-sm font-medium">Archivo cargado correctamente</p>
+                        <motion.div
+                            initial={{ scale: 0 }} animate={{ scale: 1 }}
+                            className="w-20 h-20 bg-emerald-100 rounded-[2rem] flex items-center justify-center mb-4 text-emerald-600 shadow-sm"
+                        >
+                            <CheckCircle size={36} strokeWidth={2.5} />
+                        </motion.div>
+                        <h3 className="font-bold text-slate-800 text-lg mb-1 truncate w-full p-2">{file.name}</h3>
+                        <p className="text-emerald-600 text-xs font-bold uppercase tracking-wide bg-emerald-100/50 px-3 py-1 rounded-full">Listo para procesar</p>
+
                         <button
                             onClick={onClear}
-                            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-red-500 transition-colors"
+                            className="absolute -top-12 -right-2 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all"
+                            title="Eliminar archivo"
                         >
                             <X size={20} />
                         </button>
                     </motion.div>
                 ) : (
-                    <div className="flex flex-col items-center w-full h-full justify-center">
-                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-400 group-hover:text-primary group-hover:bg-indigo-50 transition-colors">
-                            <FileSpreadsheet size={32} />
+                    <motion.div
+                        key="upload-prompt"
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
+                        className="flex flex-col items-center w-full h-full justify-center relative z-10 p-8"
+                    >
+                        <div className="w-20 h-20 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-center mb-5 text-indigo-500 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                            <FileSpreadsheet size={36} strokeWidth={1.5} />
                         </div>
-                        <h3 className="font-semibold text-slate-800 text-lg mb-2">{title}</h3>
-                        <p className="text-slate-500 text-sm mb-6">{description}</p>
-                        <label className="cursor-pointer">
-                            <span className="px-6 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-medium shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
+                        <h3 className="font-bold text-slate-800 text-xl mb-2 group-hover:text-indigo-700 transition-colors">{title}</h3>
+                        <p className="text-slate-500 text-sm mb-8 leading-snug">{description}</p>
+                        <label className="cursor-pointer relative z-20">
+                            <span className="px-8 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-sm shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-indigo-200 transition-all inline-block">
                                 Seleccionar Archivo
                             </span>
                             <input type="file" className="hidden" accept=".xlsx, .xls, .csv" onChange={onChange} />
                         </label>
-                    </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+
+            {/* Background Hover Effect */}
+            {!file && (
+                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-50/0 via-indigo-50/0 to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            )}
+        </motion.div>
     );
 };
 

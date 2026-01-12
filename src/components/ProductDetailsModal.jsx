@@ -65,40 +65,39 @@ const ProductDetailsModal = ({ isOpen, onClose, customerName, monthLabel, orderC
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+                        transition={{ duration: 0.3 }}
+                        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
                         onClick={onClose}
                     />
 
                     {/* Modal Card */}
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        initial={{ opacity: 0, scale: 0.9, y: 30 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className="relative bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+                        exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                        transition={{ type: "spring", duration: 0.5, bounce: 0.3 }}
+                        className="relative bg-white rounded-[2rem] shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col border border-white/20"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-8 py-6 flex-shrink-0">
+                        <div className="relative bg-white px-8 py-6 flex-shrink-0 border-b border-slate-100 z-10">
                             <div className="flex items-start justify-between">
                                 <div className="flex-1">
-                                    <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                                            <ShoppingCart size={20} />
-                                        </div>
-                                        {customerName}
-                                    </h2>
-                                    <div className="flex items-center gap-4 text-indigo-100">
-                                        <p className="text-lg font-medium capitalize">{monthLabel}</p>
-                                        <span className="text-sm bg-white/10 backdrop-blur-sm px-3 py-1 rounded-full">
-                                            {orderCount} {orderCount === 1 ? 'pedido' : 'pedidos'}
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="bg-indigo-50 text-indigo-600 text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                                            Detalle de Compra
+                                        </span>
+                                        <span className="text-slate-400 text-sm font-medium">
+                                            {monthLabel}
                                         </span>
                                     </div>
+                                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                                        {customerName}
+                                    </h2>
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="ml-4 w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-xl transition-colors"
+                                    className="w-10 h-10 flex items-center justify-center bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 rounded-full transition-all duration-200"
                                     aria-label="Cerrar"
                                 >
                                     <X size={20} />
@@ -106,47 +105,64 @@ const ProductDetailsModal = ({ isOpen, onClose, customerName, monthLabel, orderC
                             </div>
                         </div>
 
+                        {/* Stats Bar */}
+                        <div className="bg-slate-50/50 px-8 py-3 border-b border-slate-100 flex gap-6 text-sm">
+                            <div className="flex items-center gap-2 text-slate-600">
+                                <Package size={16} className="text-indigo-500" />
+                                <span className="font-medium">{products.length} productos distintos</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-slate-600">
+                                <ShoppingCart size={16} className="text-emerald-500" />
+                                <span className="font-medium">{orderCount} pedidos en el mes</span>
+                            </div>
+                        </div>
+
                         {/* Products List */}
-                        <div className="flex-1 overflow-y-auto px-8 py-6">
+                        <div className="flex-1 overflow-y-auto px-8 py-6 bg-slate-50/30 custom-scrollbar">
                             {products.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                    <Package size={48} className="opacity-20 mb-4" />
+                                    <Package size={64} className="opacity-10 mb-4" />
                                     <p className="text-lg font-medium">No hay productos disponibles</p>
                                 </div>
                             ) : (
-                                <div className="space-y-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {products.map((product, idx) => (
                                         <motion.div
                                             key={idx}
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: idx * 0.03, duration: 0.2 }}
-                                            className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:bg-slate-100 hover:border-slate-300 transition-all group"
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: idx * 0.02, duration: 0.3 }}
+                                            className="bg-white border boundary-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all group relative overflow-hidden"
                                         >
-                                            <div className="flex items-start justify-between gap-4">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-slate-50 to-white rounded-bl-full -mr-8 -mt-8 z-0" />
+
+                                            <div className="relative z-10 flex items-start gap-4">
+                                                <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center flex-shrink-0 text-indigo-600 font-bold text-lg shadow-inner">
+                                                    {product.quantity}x
+                                                </div>
+
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-baseline gap-3 mb-1">
-                                                        <span className="font-mono text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded font-medium">
-                                                            {product.sku}
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded tracking-tight">
+                                                            SKU: {product.sku}
                                                         </span>
-                                                        <span className="text-emerald-600 font-bold text-sm bg-emerald-50 px-2 py-0.5 rounded">
-                                                            x{product.quantity}
-                                                        </span>
+                                                        {product.total > 0 && (
+                                                            <span className="font-bold text-slate-900 text-sm">
+                                                                L. {product.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <p className="text-slate-700 font-medium text-sm leading-relaxed">
+
+                                                    <p className="text-slate-700 font-medium text-sm leading-snug line-clamp-2" title={product.description}>
                                                         {product.description}
                                                     </p>
-                                                </div>
-                                                {product.total > 0 && (
-                                                    <div className="text-right flex-shrink-0">
-                                                        <p className="text-slate-900 font-bold text-lg">
-                                                            L. {product.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </p>
-                                                        <p className="text-slate-400 text-xs">
+
+                                                    {product.total > 0 && (
+                                                        <p className="text-slate-400 text-[11px] mt-1.5 text-right">
                                                             L. {(product.total / product.quantity).toFixed(2)} c/u
                                                         </p>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
                                         </motion.div>
                                     ))}
@@ -155,21 +171,16 @@ const ProductDetailsModal = ({ isOpen, onClose, customerName, monthLabel, orderC
                         </div>
 
                         {/* Footer */}
-                        {products.length > 0 && (
-                            <div className="bg-slate-50 border-t border-slate-200 px-8 py-5 flex-shrink-0">
-                                <div className="flex items-center justify-between">
-                                    <div className="text-slate-600">
-                                        <p className="text-sm font-medium">Total de productos diferentes:</p>
-                                        <p className="text-2xl font-bold text-slate-900">{products.length}</p>
+                        {products.length > 0 && totalAmount > 0 && (
+                            <div className="bg-white border-t border-slate-100 px-8 py-5 flex-shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] z-20">
+                                <div className="flex items-center justify-end gap-3">
+                                    <div className="text-right">
+                                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Total del mes</p>
+                                        <p className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                                            <span className="text-lg text-slate-400 font-medium mr-1">L.</span>
+                                            {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </p>
                                     </div>
-                                    {totalAmount > 0 && (
-                                        <div className="text-right">
-                                            <p className="text-sm font-medium text-slate-600 mb-1">Total del mes:</p>
-                                            <p className="text-3xl font-bold text-indigo-600">
-                                                L. {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </p>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}

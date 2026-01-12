@@ -51,16 +51,16 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
 
     // Helper for heatmap color
     const getIntensityClass = (count) => {
-        if (!count) return 'bg-slate-50 text-slate-300 border-r border-slate-100 hover:bg-slate-100';
+        if (!count) return 'bg-slate-50/50 text-slate-300 border-r border-slate-100/50 hover:bg-slate-100';
 
         // 1 purchase: Green (Good start)
-        if (count === 1) return 'bg-emerald-300 text-emerald-900 font-bold border-r border-emerald-400/20 hover:bg-emerald-400 cursor-pointer';
+        if (count === 1) return 'bg-emerald-300 text-emerald-900 font-bold border-r border-emerald-400/20 hover:bg-emerald-400 cursor-pointer shadow-sm';
 
         // 2-3 purchases: Orange/Amber (Getting interesting)
-        if (count <= 3) return 'bg-amber-400 text-amber-950 font-bold border-r border-amber-500/20 hover:bg-amber-500 cursor-pointer';
+        if (count <= 3) return 'bg-amber-400 text-amber-950 font-bold border-r border-amber-500/20 hover:bg-amber-500 cursor-pointer shadow-sm';
 
         // 4+ purchases: Red/Rose (Hot/High Frequency - "Compro bastante")
-        return 'bg-rose-600 text-white font-bold shadow-inner border-r border-rose-700/20 hover:bg-rose-700 cursor-pointer';
+        return 'bg-rose-500 text-white font-bold shadow-inner border-r border-rose-600/20 hover:bg-rose-600 cursor-pointer';
     };
 
     const handleMonthClick = (key, data) => {
@@ -70,7 +70,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     };
 
     return (
-        <div className="flex w-full min-w-[200px] border border-slate-200 rounded-lg divide-x divide-slate-100 bg-slate-50">
+        <div className="flex w-full min-w-[200px] border border-slate-200/60 rounded-xl divide-x divide-slate-100 bg-white/50 backdrop-blur-sm overflow-hidden">
             {timeline.map((dateObj, idx) => {
                 const key = format(dateObj, 'yyyy-MM');
                 const data = monthData[key];
@@ -87,9 +87,9 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                     <div
                         key={key}
                         className={`
-                            relative flex-1 h-8 flex items-center justify-center text-[10px] transition-all group first:rounded-l-lg last:rounded-r-lg
+                            relative flex-1 h-9 flex items-center justify-center text-[10px] transition-all duration-200
                             ${getIntensityClass(count)}
-                            ${isHovered ? 'z-20 scale-110 shadow-lg ring-2 ring-indigo-500 rounded-lg' : 'z-0'}
+                            ${isHovered ? 'z-20 scale-110 shadow-xl ring-2 ring-indigo-500 ring-offset-2 rounded-lg' : 'z-0'}
                             ${count > 0 ? 'active:scale-95' : 'cursor-default'}
                         `}
                         onMouseEnter={() => setHoveredMonth(key)}
@@ -97,32 +97,38 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                         onClick={() => handleMonthClick(key, data)}
                     >
                         {/* Label */}
-                        <span className="relative z-10 flex flex-col items-center leading-none">
+                        <span className={`relative z-10 flex flex-col items-center leading-none ${count > 3 ? 'text-white/90' : ''} ${!count ? 'opacity-60' : ''}`}>
                             {firstChar}
                         </span>
 
                         {/* Year Marker (Small Overlay if Jan) */}
                         {isJan && (
-                            <span className="absolute -top-3.5 left-0 text-[9px] font-bold text-slate-500 z-10">
+                            <span className="absolute -top-4 left-0 text-[8px] font-extrabold text-slate-400/80 z-10 bg-slate-50 px-1 rounded-full border border-slate-100">
                                 {yearLabel}
                             </span>
                         )}
 
                         {/* Tooltip */}
                         {count > 0 && isHovered && (
-                            <div className="absolute bottom-full right-0 mb-2 w-72 p-4 bg-slate-900/95 backdrop-blur-sm text-white text-xs rounded-xl shadow-2xl z-[100] pointer-events-none transform origin-bottom-right border border-white/10 animate-in fade-in zoom-in-95 duration-150 text-left">
-                                <div className="font-bold mb-3 border-b border-white/10 pb-2 flex justify-between items-center">
-                                    <span className="text-base text-emerald-400 capitalize">{format(dateObj, 'MMMM yyyy', { locale: es })}</span>
-                                    <span className="text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">{count} pedidos</span>
+                            <div className="absolute bottom-full right-0 mb-3 w-72 p-0 bg-slate-900 text-white text-xs rounded-2xl shadow-2xl z-[100] pointer-events-none transform origin-bottom-right animate-in fade-in zoom-in-95 duration-200 border border-slate-700 overflow-hidden">
+                                {/* Tooltip Header */}
+                                <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
+                                    <span className="text-sm font-bold capitalize text-white">{format(dateObj, 'MMMM yyyy', { locale: es })}</span>
+                                    <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                                        {count} pedidos
+                                    </span>
                                 </div>
-                                <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+
+                                {/* Tooltip Body */}
+                                <div className="p-4 space-y-3 max-h-60 overflow-y-auto custom-scrollbar-dark bg-slate-900/95">
                                     <ProductSummary items={data.items} />
                                 </div>
-                                <div className="mt-2 pt-2 border-t border-white/10 text-center">
-                                    <span className="text-indigo-300 text-[10px] font-medium">🖱️ Haz clic para ver detalles completos</span>
+
+                                {/* Tooltip Footer */}
+                                <div className="bg-slate-950/50 px-4 py-2 text-center border-t border-slate-800">
+                                    <span className="text-indigo-400 text-[10px] font-semibold tracking-wide uppercase">👆 Haz clic para ver detalles</span>
                                 </div>
-                                {/* Arrow */}
-                                <div className="absolute top-full right-4 border-8 border-transparent border-t-slate-900/95"></div>
                             </div>
                         )}
                     </div>

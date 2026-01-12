@@ -3,7 +3,8 @@ import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets } from './utils/dataProcessing';
 import { saveCustomersToFirestore, loadCustomersFromFirestore, clearAllData } from './utils/firestoreUtils';
-import { Cloud, CloudOff, RefreshCw, Trash2 } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, Trash2, Activity } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 function App() {
   const [data, setData] = useState(null);
@@ -142,65 +143,112 @@ function App() {
 
   if (isProcessing || syncStatus.isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-500 font-medium">
-          {isProcessing ? 'Procesando datos...' : 'Cargando desde la nube...'}
-        </p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden">
+        {/* Abstract Background */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-200/30 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-violet-200/30 rounded-full blur-3xl animate-pulse delay-700"></div>
+        </div>
+
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-6 shadow-xl"></div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">
+            {isProcessing ? 'Procesando tus datos' : 'Sincronizando con la nube'}
+          </h3>
+          <p className="text-slate-500 text-sm animate-pulse">
+            Esto puede tomar unos segundos...
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="antialiased text-slate-900 bg-slate-50 min-h-screen font-sans">
-      {/* Sync Status Bar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
-          {syncStatus.lastSync ? (
-            <>
-              <Cloud size={14} className="text-emerald-500" />
-              <span className="text-slate-600">
-                Última sincronización: {syncStatus.lastSync.toLocaleTimeString('es-HN')}
-              </span>
-            </>
-          ) : (
-            <>
-              <CloudOff size={14} className="text-slate-400" />
-              <span className="text-slate-400">Sin datos en la nube</span>
-            </>
-          )}
-          {syncStatus.error && (
-            <span className="text-rose-500 ml-2">Error: {syncStatus.error}</span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadFromCloud}
-            className="flex items-center gap-1 px-3 py-1 text-slate-600 hover:text-primary hover:bg-slate-50 rounded transition-colors"
-            title="Recargar desde la nube"
-          >
-            <RefreshCw size={14} />
-            <span>Recargar</span>
-          </button>
-          {data && (
-            <button
-              onClick={handleClearCloud}
-              className="flex items-center gap-1 px-3 py-1 text-rose-600 hover:bg-rose-50 rounded transition-colors"
-              title="Eliminar todos los datos de la nube"
-            >
-              <Trash2 size={14} />
-              <span>Limpiar nube</span>
-            </button>
-          )}
-        </div>
+    <div className="antialiased text-slate-900 bg-slate-50 min-h-screen font-sans relative selection:bg-indigo-500 selection:text-white">
+      {/* Dynamic Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-20%] left-[-10%] w-[70rem] h-[70rem] bg-indigo-100/40 rounded-full blur-[100px] opacity-60"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60rem] h-[60rem] bg-violet-100/40 rounded-full blur-[100px] opacity-60"></div>
       </div>
 
-      {!data ? (
-        <FileUpload onFilesUploaded={handleFilesUploaded} />
-      ) : (
-        <Dashboard data={data} onBack={handleBack} />
-      )}
+      {/* Glass Header / Sync Status */}
+      <header className="fixed top-0 w-full z-40 px-6 py-4 pointer-events-none">
+        <div className="max-w-[1920px] mx-auto flex justify-end">
+          <motion.div
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="flex items-center gap-3 bg-white/70 backdrop-blur-md border border-white/50 shadow-sm px-4 py-2 rounded-full pointer-events-auto"
+          >
+            <div className="flex items-center gap-2 pr-3 border-r border-slate-200/60">
+              {syncStatus.lastSync ? (
+                <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
+                  <Cloud size={12} strokeWidth={3} />
+                  <span>Sincronizado</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
+                  <CloudOff size={12} strokeWidth={3} />
+                  <span>Offline</span>
+                </div>
+              )}
+
+              {syncStatus.lastSync && (
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {syncStatus.lastSync.toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={loadFromCloud}
+                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-full transition-colors"
+                title="Recargar desde la nube"
+              >
+                <RefreshCw size={14} />
+              </button>
+
+              {data && (
+                <button
+                  onClick={handleClearCloud}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors"
+                  title="Eliminar datos"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="relative z-10 min-h-screen pt-20 pb-10 px-6">
+        <AnimatePresence mode="wait">
+          {!data ? (
+            <motion.div
+              key="upload"
+              initial={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="h-[80vh] flex items-center justify-center"
+            >
+              <FileUpload onFilesUploaded={handleFilesUploaded} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="dashboard"
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Dashboard data={data} onBack={handleBack} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
     </div>
   );
 }

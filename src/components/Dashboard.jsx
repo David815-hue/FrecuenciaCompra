@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import MonthVisualizer from './MonthVisualizer';
 import ProductDetailsModal from './ProductDetailsModal';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const Dashboard = ({ data, onBack }) => {
     const [query, setQuery] = useState('');
-    const [onlyRecurring, setOnlyRecurring] = useState(false); // Default to showing all customers
-    const [selectedMonth, setSelectedMonth] = useState(null); // Modal state
+    const [onlyRecurring, setOnlyRecurring] = useState(false);
+    const [selectedMonth, setSelectedMonth] = useState(null);
 
     // 1. Filter Data (Search)
     const filteredData = useMemo(() => {
@@ -36,28 +36,18 @@ const Dashboard = ({ data, onBack }) => {
             }
             map[key].orders.push(order);
 
-            // Update identity if found
             if (order.identity && order.identity !== 'No se encontró' && (map[key].identity === 'No se encontró')) {
                 map[key].identity = order.identity;
             }
         });
 
-        const result = Object.values(map);
-
-        // DEBUG: Log first customer to see data structure
-        if (result.length > 0) {
-            console.log('DEBUG - First customer sample:', result[0]);
-        }
-
-        return result;
+        return Object.values(map);
     }, [filteredData]);
 
     // 3. Apply Recurring Filter
     const displayList = useMemo(() => {
-        // Performance optimization: Only show results if user is searching
-        // This prevents rendering 5,800+ customers at once
         if (!query || query.trim().length < 3) {
-            return []; // Empty list until user searches
+            return [];
         }
 
         let list = customers;
@@ -67,7 +57,7 @@ const Dashboard = ({ data, onBack }) => {
         return list;
     }, [customers, onlyRecurring, query]);
 
-    // 4. Calculate Global Date Range for Alignment
+    // 4. Calculate Global Date Range
     const dateRange = useMemo(() => {
         let minTime = Infinity;
         let maxTime = -Infinity;
@@ -83,14 +73,13 @@ const Dashboard = ({ data, onBack }) => {
             });
         });
 
-        if (minTime === Infinity) return { min: new Date(), max: new Date() }; // Default
+        if (minTime === Infinity) return { min: new Date(), max: new Date() };
 
-        // Add some buffer or snap to month start/end
         const minDate = new Date(minTime);
-        minDate.setDate(1); // Start of month
+        minDate.setDate(1);
 
         const maxDate = new Date(maxTime);
-        maxDate.setDate(1); // Start of max month (visualizer handles rest)
+        maxDate.setDate(1);
 
         return { min: minDate, max: maxDate };
     }, [displayList]);
@@ -101,7 +90,6 @@ const Dashboard = ({ data, onBack }) => {
     };
 
     const handleMonthClick = (customer) => (monthKey, monthData) => {
-        // Format month label
         const monthLabel = format(monthData.date, 'MMMM yyyy', { locale: es });
 
         setSelectedMonth({
@@ -117,125 +105,192 @@ const Dashboard = ({ data, onBack }) => {
         setSelectedMonth(null);
     };
 
-    return (
-        <div className="min-h-screen bg-slate-50 p-6 md:p-8 font-sans">
-            {/* Header Area */}
-            <div className="max-w-[1600px] mx-auto mb-8 space-y-6">
+    // Stagger animation for table rows
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        show: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.05
+            }
+        }
+    };
 
-                {/* Top Bar */}
-                <div className="flex justify-between items-center">
+    const itemVariants = {
+        hidden: { opacity: 0, y: 10 },
+        show: { opacity: 1, y: 0 }
+    };
+
+    return (
+        <div className="max-w-[1920px] mx-auto space-y-8">
+            {/* Header Area */}
+            <header className="flex flex-col gap-8">
+                {/* Top Navigation Bar */}
+                <div className="flex justify-between items-center bg-white/70 backdrop-blur-md px-8 py-4 rounded-3xl border border-white/50 shadow-sm">
                     <button
                         onClick={onBack}
-                        className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-medium"
+                        className="group flex items-center gap-3 text-slate-500 hover:text-indigo-600 transition-all font-medium text-sm"
                     >
-                        <ArrowLeft size={20} />
-                        <span>Cargar otro archivo</span>
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-indigo-50 transition-colors">
+                            <ArrowLeft size={16} />
+                        </div>
+                        <span>Volver al inicio</span>
                     </button>
+
                     <button
                         onClick={handleExport}
                         disabled={displayList.length === 0}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-xl shadow-lg hover:bg-emerald-700 hover:shadow-emerald-200 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-full shadow-lg shadow-slate-900/20 hover:bg-slate-800 hover:-translate-y-0.5 transition-all text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                     >
-                        <Download size={18} />
-                        <span>Exportar Excel</span>
+                        <Download size={16} />
+                        <span>Exportar Reporte</span>
                     </button>
                 </div>
 
-                <div className="flex flex-col lg:flex-row gap-6 items-end lg:items-center justify-between">
+                {/* Dashboard Title & Stats */}
+                <div className="flex flex-col lg:flex-row gap-8 items-end lg:items-center justify-between px-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Reporte de Frecuencia</h1>
-                        <p className="text-slate-500 mt-1">
+                        <motion.h1
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="text-4xl font-extrabold tracking-tight text-slate-900 mb-2"
+                        >
+                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
+                                Dashboard
+                            </span> de Frecuencia
+                        </motion.h1>
+                        <p className="text-slate-500 font-medium">
                             {query.length >= 3 ? (
-                                <>
-                                    {displayList.length} clientes encontrados
-                                    {onlyRecurring && <span className="ml-2 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-sm font-medium">Recurrentes (+1 compra)</span>}
-                                </>
+                                <motion.span
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="flex items-center gap-2"
+                                >
+                                    <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider">
+                                        {displayList.length} Resultados
+                                    </span>
+                                    {onlyRecurring && <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider">Filtro Activo</span>}
+                                </motion.span>
                             ) : (
-                                <span className="text-amber-600 font-medium">
-                                    💡 Ingresa al menos 3 caracteres para buscar (SKU, email, teléfono)
+                                <span className="text-amber-600/80 font-medium flex items-center gap-2 text-sm bg-amber-50 px-3 py-1 rounded-full w-fit">
+                                    <span>💡</span>
+                                    <span>Ingresa 3+ caracteres para comenzar</span>
                                 </span>
                             )}
                         </p>
                     </div>
 
-                    {/* Controls */}
-                    <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto">
+                    {/* Controls Bar */}
+                    <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+                        {/* Search Input */}
+                        <div className="relative w-full md:w-96 group">
+                            <div className="absolute top-1/2 -translate-y-1/2 left-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                                <Search size={20} />
+                            </div>
+                            <input
+                                type="text"
+                                className="w-full pl-11 pr-4 py-3 bg-slate-50 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-200 transition-all outline-none text-slate-700 placeholder:text-slate-400 font-medium"
+                                placeholder="Buscar por SKU, Email, Teléfono..."
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                            />
+                        </div>
 
                         {/* Recurring Toggle */}
                         <button
                             onClick={() => setOnlyRecurring(!onlyRecurring)}
                             className={`
-                                flex items-center justify-center gap-2 px-4 py-3 rounded-xl border transition-all font-medium whitespace-nowrap
+                                flex items-center justify-center gap-2 px-6 py-3 rounded-xl transition-all font-semibold whitespace-nowrap border
                                 ${onlyRecurring
-                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm'
+                                    : 'bg-white border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700'}
                             `}
                         >
                             <Filter size={18} />
-                            {onlyRecurring ? 'Filtrando: > 1 Compra' : 'Mostrar Todos'}
+                            {onlyRecurring ? 'Solo Recurrentes' : 'Mostrar Todos'}
                         </button>
-
-                        {/* Search Input */}
-                        <div className="relative w-full md:w-96 group">
-                            <div className="absolute top-3.5 left-4 text-slate-400 group-focus-within:text-primary transition-colors">
-                                <Search size={20} />
-                            </div>
-                            <textarea
-                                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none resize-none h-[50px] focus:h-[100px] text-sm"
-                                placeholder="Pegar lista de SKUs, Emails o Teléfonos..."
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                            />
-                        </div>
                     </div>
                 </div>
-            </div>
+            </header>
 
             {/* Table Area */}
-            <div className="max-w-[1600px] mx-auto bg-white rounded-3xl shadow-sm border border-slate-200">
-                <div className="overflow-x-auto rounded-3xl">
+            <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-xl shadow-slate-200/50 border border-white/60 overflow-hidden">
+                <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold text-sm">
-                                <th className="px-6 py-5 w-64">Cliente</th>
-                                <th className="px-6 py-5 w-48">Contacto</th>
-                                <th className="px-6 py-5 w-32">Identidad</th>
-                                <th className="px-6 py-5 w-32 text-right">Total Gastado</th>
-                                <th className="px-6 py-5">
-                                    Frecuencia Mensual
-                                    <span className="ml-2 text-[10px] font-normal text-slate-400 border border-slate-200 px-1 rounded">
-                                        {dateRange.min.getFullYear() === dateRange.max.getFullYear()
-                                            ? dateRange.min.getFullYear()
-                                            : `${dateRange.min.getFullYear()} - ${dateRange.max.getFullYear()}`}
-                                    </span>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500 text-xs font-bold uppercase tracking-wider">
+                                <th className="px-8 py-6 w-[22rem]">Cliente</th>
+                                <th className="px-6 py-6 w-56">Identidad</th>
+                                <th className="px-6 py-6 w-48 text-right">Inversión Total</th>
+                                <th className="px-6 py-6 min-w-[300px]">
+                                    <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity cursor-help" title="Mapa de calor de compras mensuales">
+                                        <Calendar size={14} />
+                                        <span>Frecuencia Mensual</span>
+                                        <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white border border-slate-200 rounded-full normal-case tracking-normal text-slate-500">
+                                            {dateRange.min.getFullYear()}
+                                        </span>
+                                    </div>
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                        <tbody className="divide-y divide-slate-50">
                             {displayList.map((customer, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50 transition-colors group">
-                                    <td className="px-6 py-4 align-top">
-                                        <div className="font-bold text-slate-900">{customer.name}</div>
-                                        <div className="text-xs text-slate-500 mt-1 flex gap-2">
-                                            <span className="bg-slate-100 px-1.5 py-0.5 rounded">{customer.orders.length} pedidos</span>
-                                            {customer.city && <span>{customer.city}</span>}
+                                <tr
+                                    key={`${customer.name}-${idx}`}
+                                    className="hover:bg-indigo-50/30 transition-colors group relative"
+                                >
+                                    <td className="px-8 py-6 align-top">
+                                        <div className="flex gap-4">
+                                            {/* Avatar Placeholder */}
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-500 font-bold text-sm shrink-0 shadow-inner">
+                                                {customer.name.substring(0, 2).toUpperCase()}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-bold text-slate-800 text-base mb-1 truncate">{customer.name}</div>
+                                                <div className="flex flex-col gap-1">
+                                                    {customer.email && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 group-hover:text-indigo-600 transition-colors truncate">
+                                                            <Mail size={12} />
+                                                            {customer.email}
+                                                        </div>
+                                                    )}
+                                                    {customer.phone && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
+                                                            <Phone size={12} />
+                                                            {customer.phone}
+                                                        </div>
+                                                    )}
+                                                    {customer.city && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                                                            <MapPin size={12} />
+                                                            {customer.city}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 align-top text-sm">
-                                        {customer.phone && (
-                                            <div className="font-medium mb-1 font-mono text-slate-600">{customer.phone}</div>
-                                        )}
-                                        {customer.email && (
-                                            <div className="text-xs text-slate-400 truncate max-w-[180px]" title={customer.email}>{customer.email}</div>
-                                        )}
+
+                                    <td className="px-6 py-6 align-top">
+                                        <div className="flex flex-col items-start gap-2">
+                                            <div className="font-mono text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
+                                                {customer.identity}
+                                            </div>
+                                            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                                {customer.orders.length} pedidos
+                                            </span>
+                                        </div>
                                     </td>
-                                    <td className="px-6 py-4 align-top text-sm font-mono text-slate-500">
-                                        {customer.identity}
+
+                                    <td className="px-6 py-6 align-top text-right">
+                                        <div className="font-bold text-slate-900 text-lg tracking-tight">
+                                            L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        </div>
+                                        <div className="text-xs text-slate-400 font-medium">Total acumulado</div>
                                     </td>
-                                    <td className="px-6 py-4 align-top text-right font-medium text-slate-900 whitespace-nowrap">
-                                        L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </td>
-                                    <td className="px-6 py-4 align-top">
+
+                                    <td className="px-6 py-6 align-top">
                                         <MonthVisualizer
                                             orders={customer.orders}
                                             minDate={dateRange.min}
@@ -245,21 +300,27 @@ const Dashboard = ({ data, onBack }) => {
                                     </td>
                                 </tr>
                             ))}
+
+                            {/* Empty State */}
                             {displayList.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="p-12 text-center text-slate-400">
-                                        <div className="flex flex-col items-center">
-                                            <Search size={48} className="opacity-20 mb-4" />
+                                    <td colSpan={4} className="py-24 text-center">
+                                        <div className="flex flex-col items-center max-w-md mx-auto">
+                                            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                                                <Search size={40} className="text-slate-200" />
+                                            </div>
+
                                             {query.length >= 3 ? (
                                                 <>
-                                                    <p className="font-medium">No se encontraron clientes</p>
-                                                    <p className="text-sm opacity-70">Intenta con otro término de búsqueda</p>
+                                                    <h3 className="text-lg font-bold text-slate-900 mb-2">No se encontraron resultados</h3>
+                                                    <p className="text-slate-500">Intenta buscar con otro nombre, SKU o número de teléfono.</p>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <p className="font-medium text-lg mb-2">Busca por SKU, Email o Teléfono</p>
-                                                    <p className="text-sm opacity-70">Ingresa al menos 3 caracteres en el campo de búsqueda arriba</p>
-                                                    <p className="text-xs opacity-50 mt-2">💡 Puedes pegar múltiples valores separados por comas</p>
+                                                    <h3 className="text-lg font-bold text-slate-900 mb-2">Comienza tu búsqueda</h3>
+                                                    <p className="text-slate-500 leading-relaxed">
+                                                        Ingresa el <span className="text-indigo-600 font-bold">SKU</span>, <span className="text-indigo-600 font-bold">nombre</span> o <span className="text-indigo-600 font-bold">teléfono</span> del cliente para ver su historial detallado.
+                                                    </p>
                                                 </>
                                             )}
                                         </div>
@@ -267,13 +328,6 @@ const Dashboard = ({ data, onBack }) => {
                                 </tr>
                             )}
                         </tbody>
-                        <tfoot className="bg-slate-50 border-t border-slate-200">
-                            <tr>
-                                <td colSpan={5} className="px-6 py-4 text-xs text-slate-400 text-right">
-                                    Mostrando {displayList.length} registros
-                                </td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
             </div>

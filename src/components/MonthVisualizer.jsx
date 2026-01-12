@@ -53,8 +53,17 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     const monthData = {};
     orders.forEach(order => {
         const d = new Date(order.orderDate);
+        if (isNaN(d.getTime())) return; // Skip invalid dates
+
         const key = format(d, 'yyyy-MM');
-        if (!monthData[key]) monthData[key] = { count: 0, items: [], total: 0 };
+        if (!monthData[key]) {
+            monthData[key] = {
+                count: 0,
+                items: [],
+                total: 0,
+                date: new Date(key + '-01') // Add date for formatting
+            };
+        }
         monthData[key].count++;
         monthData[key].total += parseFloat(order.totalAmount || 0);
         // Add items if available (requires order structure update to include items here if needed for tooltip)
@@ -130,7 +139,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                         )}
 
                         {/* Tooltip */}
-                        {count > 0 && isHovered && (
+                        {count > 0 && isHovered && data && (
                             <div className="absolute bottom-full right-0 mb-3 w-72 p-0 bg-slate-900 dark:bg-black/95 text-white text-xs rounded-2xl shadow-2xl z-[100] pointer-events-none transform origin-bottom-right animate-in fade-in zoom-in-95 duration-200 border border-slate-700 overflow-hidden">
                                 {/* Tooltip Header */}
                                 <div className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-900 dark:to-black px-4 py-3 border-b border-slate-700 flex justify-between items-center">
@@ -143,7 +152,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
 
                                 {/* Tooltip Body */}
                                 <div className="p-4 space-y-3 max-h-60 overflow-y-auto custom-scrollbar-dark bg-slate-900/95 dark:bg-black/80">
-                                    <ProductSummary items={data.items} />
+                                    <ProductSummary items={data.items || []} />
                                 </div>
 
                                 {/* Tooltip Footer */}

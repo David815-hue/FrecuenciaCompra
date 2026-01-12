@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import MonthVisualizer from './MonthVisualizer';
 import ProductDetailsModal from './ProductDetailsModal';
@@ -20,6 +20,18 @@ const Dashboard = ({ data, onBack }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const RECORDS_PER_PAGE = 50;
 
+    // Sort state
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+    // Helper to handle sort clicks
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
     // 1. Filter Data (Search)
     const filteredData = useMemo(() => {
         return filterData(data, query);
@@ -39,10 +51,12 @@ const Dashboard = ({ data, onBack }) => {
                     phone: order.phone,
                     identity: order.identity || 'No se encontró',
                     city: order.city,
-                    orders: []
+                    orders: [],
+                    totalInvestment: 0
                 };
             }
             map[key].orders.push(order);
+            map[key].totalInvestment += (order.totalAmount || 0);
 
             if (order.identity && order.identity !== 'No se encontró' && (map[key].identity === 'No se encontró')) {
                 map[key].identity = order.identity;
@@ -89,11 +103,35 @@ const Dashboard = ({ data, onBack }) => {
         return list;
     }, [customers, selectedCities, minQuantity, onlyRecurring, query]);
 
-    // 5. Pagination calculations
-    const totalPages = Math.ceil(displayList.length / RECORDS_PER_PAGE);
+    // 5. Apply Sorting
+    const sortedList = useMemo(() => {
+        let sortableItems = [...displayList];
+        if (sortConfig.key !== null) {
+            sortableItems.sort((a, b) => {
+                let aValue = a[sortConfig.key];
+                let bValue = b[sortConfig.key];
+
+                // Handle non-string values or special cases if needed
+                if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+                if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [displayList, sortConfig]);
+
+    // 6. Pagination calculations
+    const totalPages = Math.ceil(sortedList.length / RECORDS_PER_PAGE);
     const startIndex = (currentPage - 1) * RECORDS_PER_PAGE;
     const endIndex = startIndex + RECORDS_PER_PAGE;
-    const paginatedList = displayList.slice(startIndex, endIndex);
+    const paginatedList = sortedList.slice(startIndex, endIndex);
 
     // Reset to page 1 when filters change
     useEffect(() => {
@@ -336,9 +374,39 @@ const Dashboard = ({ data, onBack }) => {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
-                                <th className="px-8 py-6 w-[22rem]">Cliente</th>
-                                <th className="px-6 py-6 w-56">Identidad</th>
-                                <th className="px-6 py-6 w-48 text-right">Total</th>
+                                <th
+                                    onClick={() => handleSort('name')}
+                                    className="px-8 py-6 w-[22rem] cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        Cliente
+                                        {sortConfig.key === 'name' && (
+                                            sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                        )}
+                                    </div>
+                                </th>
+                                <th
+                                    onClick={() => handleSort('identity')}
+                                    className="px-6 py-6 w-56 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        Identidad
+                                        {sortConfig.key === 'identity' && (
+                                            sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                        )}
+                                    </div>
+                                </th>
+                                <th
+                                    onClick={() => handleSort('totalInvestment')}
+                                    className="px-6 py-6 w-48 text-right cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                >
+                                    <div className="flex items-center justify-end gap-2">
+                                        Total
+                                        {sortConfig.key === 'totalInvestment' && (
+                                            sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                        )}
+                                    </div>
+                                </th>
                                 <th className="px-6 py-6 min-w-[300px]">
                                     <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity cursor-help" title="Mapa de calor de compras mensuales">
                                         <Calendar size={14} />
@@ -510,8 +578,8 @@ const Dashboard = ({ data, onBack }) => {
                                             key={i}
                                             onClick={() => setCurrentPage(i)}
                                             className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${currentPage === i
-                                                    ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
-                                                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
+                                                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                                                 }`}
                                         >
                                             {i}

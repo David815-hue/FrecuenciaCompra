@@ -26,26 +26,26 @@ const FileUpload = ({ onFilesUploaded }) => {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 p-12 border border-white/50 relative overflow-hidden"
+                className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 dark:shadow-black/50 p-12 border border-white/50 dark:border-slate-800 relative overflow-hidden transition-colors duration-300"
             >
                 {/* Decoration */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-bl-[100%] -mr-10 -mt-10 z-0 opacity-50" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 rounded-bl-[100%] -mr-10 -mt-10 z-0 opacity-50" />
 
                 <div className="relative z-10 text-center mb-12">
                     <motion.div
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: 0.2, duration: 0.5 }}
-                        className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-6 shadow-sm border border-indigo-100"
+                        className="inline-flex items-center gap-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 px-4 py-1.5 rounded-full text-sm font-semibold mb-6 shadow-sm border border-indigo-100 dark:border-indigo-500/20"
                     >
                         <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
                         v2.0 Dashboard Nuevo
                     </motion.div>
 
-                    <h1 className="text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
-                        Reporte de <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Frecuencia y Recurrencia</span>
+                    <h1 className="text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-4">
+                        Reporte de <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400">Frecuencia y Recurrencia</span>
                     </h1>
-                    <p className="text-slate-500 text-lg max-w-2xl mx-auto leading-relaxed">
+                    <p className="text-slate-500 dark:text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed">
                         Sube tus archivos de datos para generar visualizaciones avanzadas sobre el comportamiento de tus clientes.
                     </p>
                 </div>
@@ -81,8 +81,8 @@ const FileUpload = ({ onFilesUploaded }) => {
                         className={`
                             group relative px-12 py-5 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-500/20 transition-all flex items-center gap-3 overflow-hidden
                             ${albatrossFile && rmsFile
-                                ? 'bg-slate-900 text-white cursor-pointer hover:shadow-indigo-500/40'
-                                : 'bg-slate-100 text-slate-400 cursor-not-allowed'}
+                                ? 'bg-slate-900 dark:bg-slate-800 text-white cursor-pointer hover:shadow-indigo-500/40'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'}
                         `}
                     >
                         <span className="relative z-10">Procesar Información</span>
@@ -100,7 +100,7 @@ const FileUpload = ({ onFilesUploaded }) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
-                className="text-center text-slate-400 text-xs mt-8 font-medium"
+                className="text-center text-slate-400 dark:text-slate-500 text-xs mt-8 font-medium"
             >
                 Seguro • Privado • Procesamiento Local
             </motion.p>
@@ -117,8 +117,8 @@ const UploadCard = ({ title, description, file, onChange, onClear, idx }) => {
             className={`
                 relative h-64 rounded-3xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center text-center group overflow-hidden
                 ${file
-                    ? 'border-emerald-400/50 bg-emerald-50/30'
-                    : 'border-slate-200 hover:border-indigo-400/50 hover:bg-indigo-50/30 bg-white/50'}
+                    ? 'border-emerald-400/50 dark:border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-500/10'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-indigo-400/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 bg-white/50 dark:bg-slate-800/50'}
             `}
         >
             <AnimatePresence mode="wait">
@@ -132,16 +132,16 @@ const UploadCard = ({ title, description, file, onChange, onClear, idx }) => {
                     >
                         <motion.div
                             initial={{ scale: 0 }} animate={{ scale: 1 }}
-                            className="w-20 h-20 bg-emerald-100 rounded-[2rem] flex items-center justify-center mb-4 text-emerald-600 shadow-sm"
+                            className="w-20 h-20 bg-emerald-100 dark:bg-emerald-500/20 rounded-[2rem] flex items-center justify-center mb-4 text-emerald-600 dark:text-emerald-400 shadow-sm"
                         >
                             <CheckCircle size={36} strokeWidth={2.5} />
                         </motion.div>
-                        <h3 className="font-bold text-slate-800 text-lg mb-1 truncate w-full p-2">{file.name}</h3>
-                        <p className="text-emerald-600 text-xs font-bold uppercase tracking-wide bg-emerald-100/50 px-3 py-1 rounded-full">Listo para procesar</p>
+                        <h3 className="font-bold text-slate-800 dark:text-slate-200 text-lg mb-1 truncate w-full p-2">{file.name}</h3>
+                        <p className="text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wide bg-emerald-100/50 dark:bg-emerald-500/20 px-3 py-1 rounded-full">Listo para procesar</p>
 
                         <button
                             onClick={onClear}
-                            className="absolute -top-12 -right-2 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all"
+                            className="absolute -top-12 -right-2 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-full transition-all"
                             title="Eliminar archivo"
                         >
                             <X size={20} />
@@ -155,13 +155,13 @@ const UploadCard = ({ title, description, file, onChange, onClear, idx }) => {
                         exit={{ scale: 0.9, opacity: 0 }}
                         className="flex flex-col items-center w-full h-full justify-center relative z-10 p-8"
                     >
-                        <div className="w-20 h-20 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-center mb-5 text-indigo-500 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                        <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-center mb-5 text-indigo-500 dark:text-indigo-400 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                             <FileSpreadsheet size={36} strokeWidth={1.5} />
                         </div>
-                        <h3 className="font-bold text-slate-800 text-xl mb-2 group-hover:text-indigo-700 transition-colors">{title}</h3>
-                        <p className="text-slate-500 text-sm mb-8 leading-snug">{description}</p>
+                        <h3 className="font-bold text-slate-800 dark:text-white text-xl mb-2 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors">{title}</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mb-8 leading-snug">{description}</p>
                         <label className="cursor-pointer relative z-20">
-                            <span className="px-8 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-sm shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-indigo-200 transition-all inline-block">
+                            <span className="px-8 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-sm shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all inline-block">
                                 Seleccionar Archivo
                             </span>
                             <input type="file" className="hidden" accept=".xlsx, .xls, .csv" onChange={onChange} />
@@ -172,7 +172,7 @@ const UploadCard = ({ title, description, file, onChange, onClear, idx }) => {
 
             {/* Background Hover Effect */}
             {!file && (
-                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-50/0 via-indigo-50/0 to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-50/0 via-indigo-50/0 to-indigo-50/50 dark:to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
             )}
         </motion.div>
     );

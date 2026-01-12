@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
+import ThemeToggle from './components/ThemeToggle';
+import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets } from './utils/dataProcessing';
 import { saveCustomersToFirestore, loadCustomersFromFirestore, clearAllData } from './utils/firestoreUtils';
 import { Cloud, CloudOff, RefreshCw, Trash2, Activity } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 function App() {
+  const { theme, toggleTheme } = useTheme();
   const [data, setData] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({
@@ -143,19 +146,19 @@ function App() {
 
   if (isProcessing || syncStatus.isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 relative overflow-hidden transition-colors duration-500">
         {/* Abstract Background */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-200/30 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-violet-200/30 rounded-full blur-3xl animate-pulse delay-700"></div>
+          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-200/30 dark:bg-indigo-900/20 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-violet-200/30 dark:bg-violet-900/20 rounded-full blur-3xl animate-pulse delay-700"></div>
         </div>
 
         <div className="relative z-10 flex flex-col items-center">
-          <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-6 shadow-xl"></div>
-          <h3 className="text-xl font-bold text-slate-800 mb-2">
+          <div className="w-20 h-20 border-4 border-indigo-100 dark:border-slate-800 border-t-indigo-600 dark:border-t-indigo-500 rounded-full animate-spin mb-6 shadow-xl"></div>
+          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
             {isProcessing ? 'Procesando tus datos' : 'Sincronizando con la nube'}
           </h3>
-          <p className="text-slate-500 text-sm animate-pulse">
+          <p className="text-slate-500 dark:text-slate-400 text-sm animate-pulse">
             Esto puede tomar unos segundos...
           </p>
         </div>
@@ -164,11 +167,11 @@ function App() {
   }
 
   return (
-    <div className="antialiased text-slate-900 bg-slate-50 min-h-screen font-sans relative selection:bg-indigo-500 selection:text-white">
+    <div className="antialiased text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 min-h-screen font-sans relative selection:bg-indigo-500 selection:text-white transition-colors duration-500">
       {/* Dynamic Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[70rem] h-[70rem] bg-indigo-100/40 rounded-full blur-[100px] opacity-60"></div>
-        <div className="absolute bottom-[-20%] right-[-10%] w-[60rem] h-[60rem] bg-violet-100/40 rounded-full blur-[100px] opacity-60"></div>
+        <div className="absolute top-[-20%] left-[-10%] w-[70rem] h-[70rem] bg-indigo-100/40 dark:bg-indigo-950/20 rounded-full blur-[100px] opacity-60 transition-colors duration-500"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60rem] h-[60rem] bg-violet-100/40 dark:bg-violet-950/20 rounded-full blur-[100px] opacity-60 transition-colors duration-500"></div>
       </div>
 
       {/* Glass Header / Sync Status */}
@@ -177,23 +180,26 @@ function App() {
           <motion.div
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="flex items-center gap-3 bg-white/70 backdrop-blur-md border border-white/50 shadow-sm px-4 py-2 rounded-full pointer-events-auto"
+            className="flex items-center gap-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/50 dark:border-slate-800 shadow-sm px-2 py-1.5 pr-4 rounded-full pointer-events-auto transition-colors duration-500"
           >
-            <div className="flex items-center gap-2 pr-3 border-r border-slate-200/60">
+            {/* Theme Toggle */}
+            <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+
+            <div className="flex items-center gap-2 px-3 border-l border-r border-slate-200/60 dark:border-slate-700/60">
               {syncStatus.lastSync ? (
-                <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
+                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
                   <Cloud size={12} strokeWidth={3} />
                   <span>Sincronizado</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
+                <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
                   <CloudOff size={12} strokeWidth={3} />
                   <span>Offline</span>
                 </div>
               )}
 
               {syncStatus.lastSync && (
-                <span className="text-[10px] text-slate-500 font-medium">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                   {syncStatus.lastSync.toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
@@ -202,7 +208,7 @@ function App() {
             <div className="flex items-center gap-1">
               <button
                 onClick={loadFromCloud}
-                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-full transition-colors"
+                className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
                 title="Recargar desde la nube"
               >
                 <RefreshCw size={14} />
@@ -211,7 +217,7 @@ function App() {
               {data && (
                 <button
                   onClick={handleClearCloud}
-                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-full transition-colors"
                   title="Eliminar datos"
                 >
                   <Trash2 size={14} />

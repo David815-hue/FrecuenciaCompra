@@ -11,7 +11,7 @@
 /* Base Styles */
 body {
   font-family: var(--font-sans);
-  @apply bg-slate-50 text-slate-900 antialiased selection:bg-indigo-100 selection:text-indigo-700;
+  @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-indigo-100 selection:text-indigo-700 dark:selection:bg-indigo-900 dark:selection:text-white transition-colors duration-500;
 }
 
 h1,

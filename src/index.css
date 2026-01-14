@@ -11,10 +11,26 @@
   --color-secondary: #64748b;
 }
 
-/* Base Styles */
+/* Base Styles with Enhanced Background */
 body {
   font-family: var(--font-sans);
-  @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-indigo-100 selection:text-indigo-700 dark:selection:bg-indigo-900 dark:selection:text-white transition-colors duration-500;
+  @apply bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/20 dark:from-slate-950 dark:via-indigo-950/40 dark:to-purple-950/30 text-slate-900 dark:text-slate-100 antialiased selection:bg-indigo-100 selection:text-indigo-700 dark:selection:bg-indigo-900 dark:selection:text-white transition-colors duration-500;
+  background-attachment: fixed;
+}
+
+/* Add subtle pattern overlay */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: radial-gradient(circle at 25px 25px, rgba(99, 102, 241, 0.03) 1px, transparent 0),
+    radial-gradient(circle at 75px 75px, rgba(139, 92, 246, 0.02) 1px, transparent 0);
+  background-size: 100px 100px;
+  pointer-events: none;
+  z-index: 0;
 }
 
 h1,
@@ -46,4 +62,30 @@ h6 {
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   @apply bg-slate-200/80 hover:bg-slate-300/80;
+}
+
+/* Glassmorphism Utilities */
+.glass-card {
+  @apply bg-white/20 dark:bg-slate-900/20 backdrop-blur-3xl border border-white/30 dark:border-slate-700/40;
+  box-shadow: 0 20px 60px 0 rgba(31, 38, 135, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+.glass-card-dark {
+  box-shadow: 0 20px 60px 0 rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-hover {
+  @apply transition-all duration-300;
+}
+
+.glass-hover:hover {
+  box-shadow: 0 25px 70px 0 rgba(31, 38, 135, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+}
+
+.glass-hover-dark:hover {
+  box-shadow: 0 25px 70px 0 rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
 }

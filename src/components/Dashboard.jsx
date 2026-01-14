@@ -209,7 +209,7 @@ const Dashboard = ({ data, onBack }) => {
             {/* Header Area */}
             <header className="flex flex-col gap-8">
                 {/* Top Navigation Bar */}
-                <div className="flex justify-between items-center bg-white/70 dark:bg-slate-900/70 backdrop-blur-md px-8 py-4 rounded-3xl border border-white/50 dark:border-slate-800 shadow-sm transition-colors duration-300">
+                <div className="flex justify-between items-center bg-white/30 dark:bg-slate-900/30 backdrop-blur-2xl px-8 py-4 rounded-3xl border border-white/40 dark:border-slate-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] transition-all duration-300">
                     <button
                         onClick={onBack}
                         className="group flex items-center gap-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all font-medium text-sm"
@@ -264,7 +264,7 @@ const Dashboard = ({ data, onBack }) => {
                     </div>
 
                     {/* Controls Bar */}
-                    <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 transition-colors duration-300">
+                    <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-2 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/30 dark:border-slate-700/50 transition-all duration-300">
                         {/* Search Input */}
                         <div className="relative w-full md:w-96 group">
                             <div className="absolute top-1/2 -translate-y-1/2 left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors">
@@ -402,7 +402,7 @@ const Dashboard = ({ data, onBack }) => {
             {viewMode === 'table' ? (
                 <>
                     {/* Table Area */}
-                    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] shadow-xl shadow-slate-200/50 dark:shadow-black/50 border border-white/60 dark:border-slate-800 overflow-hidden transition-colors duration-300 mb-8">
+                    <div className="bg-white/20 dark:bg-slate-900/20 backdrop-blur-3xl rounded-[2rem] shadow-[0_20px_60px_0_rgba(31,38,135,0.25)] dark:shadow-[0_20px_60px_0_rgba(0,0,0,0.6)] border border-white/30 dark:border-slate-700/40 overflow-hidden transition-all duration-300 mb-8 hover:shadow-[0_25px_70px_0_rgba(31,38,135,0.35)] dark:hover:shadow-[0_25px_70px_0_rgba(0,0,0,0.7)]">
                         <div className="overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left border-collapse">
                                 <thead>

@@ -2,11 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { performRFMAnalysis, getSegmentInfo } from '../utils/rfmAnalysis';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ScatterChart, Scatter, XAxis, YAxis, ZAxis, Legend, CartesianGrid } from 'recharts';
-import { Users, TrendingUp, Target, DollarSign, Download, Filter, X } from 'lucide-react';
+import { Users, TrendingUp, Target, DollarSign, Download, Filter, X, Maximize2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const RFMAnalysis = ({ customers }) => {
     const [selectedSegments, setSelectedSegments] = useState([]);
+    const [fullscreenChart, setFullscreenChart] = useState(null); // 'pie' or 'scatter'
 
     // Perform RFM Analysis
     const rfmData = useMemo(() => {
@@ -64,7 +65,8 @@ const RFMAnalysis = ({ customers }) => {
     // Prepare data for charts
     const pieData = Object.entries(rfmData.stats)
         .map(([segment, data]) => ({
-            name: segment,
+            name: data.info.name, // Use translated name
+            originalSegment: segment, // Keep original for reference
             value: data.count,
             percentage: data.percentage,
             info: data.info
@@ -77,6 +79,7 @@ const RFMAnalysis = ({ customers }) => {
         z: c.rfm.monetary,
         segment: c.rfm.segment,
         name: c.name,
+        phone: c.phone || 'No disponible',
         r: Math.max(5, Math.min(30, c.rfm.monetaryScore * 6)),
         info: getSegmentInfo(c.rfm.segment)
     }));
@@ -110,10 +113,11 @@ const RFMAnalysis = ({ customers }) => {
                     <span className="font-bold text-sm">{data.name}</span>
                 </div>
                 <div className="text-xs space-y-1">
+                    <p><span className="text-slate-400">📱 Teléfono:</span> <span className="font-bold text-white font-mono">{data.phone}</span></p>
                     <p><span className="text-slate-400">Recencia:</span> <span className="font-bold text-white">{data.x} días</span></p>
                     <p><span className="text-slate-400">Frecuencia:</span> <span className="font-bold text-white">{data.y} pedidos</span></p>
                     <p><span className="text-slate-400">Monetario:</span> <span className="font-bold text-white">L. {data.z.toLocaleString()}</span></p>
-                    <p className="pt-1 border-t border-slate-600"><span className="text-slate-400">Segmento:</span> <span className="font-bold" style={{ color: data.info.color }}>{data.segment}</span></p>
+                    <p className="pt-1 border-t border-slate-600"><span className="text-slate-400">Segmento:</span> <span className="font-bold" style={{ color: data.info.color }}>{data.info.name}</span></p>
                 </div>
             </div>
         );
@@ -187,12 +191,21 @@ const RFMAnalysis = ({ customers }) => {
                     animate={{ opacity: 1, scale: 1 }}
                     className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] p-6 shadow-xl border border-white/60 dark:border-slate-800"
                 >
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                            📊
-                        </span>
-                        Distribución por Segmento
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                📊
+                            </span>
+                            Distribución por Segmento
+                        </h3>
+                        <button
+                            onClick={() => setFullscreenChart('pie')}
+                            className="p-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 transition-colors"
+                            title="Ver en pantalla completa"
+                        >
+                            <Maximize2 size={18} />
+                        </button>
+                    </div>
                     <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
                             <Pie
@@ -234,12 +247,21 @@ const RFMAnalysis = ({ customers }) => {
                     transition={{ delay: 0.1 }}
                     className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] p-6 shadow-xl border border-white/60 dark:border-slate-800"
                 >
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                        <span className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                            🎯
-                        </span>
-                        Matriz RFM (Recencia vs Frecuencia)
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                🎯
+                            </span>
+                            Matriz RFM (Recencia vs Frecuencia)
+                        </h3>
+                        <button
+                            onClick={() => setFullscreenChart('scatter')}
+                            className="p-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 transition-colors"
+                            title="Ver en pantalla completa"
+                        >
+                            <Maximize2 size={18} />
+                        </button>
+                    </div>
                     <ResponsiveContainer width="100%" height={300}>
                         <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
@@ -378,6 +400,120 @@ const RFMAnalysis = ({ customers }) => {
                         })}
                 </div>
             </motion.div>
+
+            {/* Fullscreen Modal */}
+            {fullscreenChart && (
+                <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setFullscreenChart(null)}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-7xl w-full max-h-[90vh] overflow-auto shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
+                                <span className="text-3xl">
+                                    {fullscreenChart === 'pie' ? '📊' : '🎯'}
+                                </span>
+                                {fullscreenChart === 'pie' ? 'Distribución por Segmento' : 'Matriz RFM (Recencia vs Frecuencia)'}
+                            </h2>
+                            <button
+                                onClick={() => setFullscreenChart(null)}
+                                className="p-3 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Chart Container */}
+                        <div className="w-full" style={{ height: '70vh' }}>
+                            {fullscreenChart === 'pie' ? (
+                                <>
+                                    <ResponsiveContainer width="100%" height="85%">
+                                        <PieChart>
+                                            <Pie
+                                                data={pieData}
+                                                cx="50%"
+                                                cy="50%"
+                                                labelLine={false}
+                                                outerRadius={200}
+                                                innerRadius={120}
+                                                fill="#8884d8"
+                                                dataKey="value"
+                                                paddingAngle={2}
+                                            >
+                                                {pieData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.info.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip content={<PieTooltip />} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+
+                                    {/* Full Legend */}
+                                    <div className="grid grid-cols-3 md:grid-cols-4 gap-3 mt-6">
+                                        {pieData.map((item) => (
+                                            <div key={item.name} className="flex items-center gap-2 text-sm">
+                                                <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: item.info.color }}></div>
+                                                <span className="text-slate-700 dark:text-slate-300 font-medium truncate">
+                                                    {item.info.icon} {item.name} ({item.value})
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ScatterChart margin={{ top: 20, right: 40, bottom: 40, left: 20 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+                                            <XAxis
+                                                type="number"
+                                                dataKey="x"
+                                                name="Recencia"
+                                                unit=" días"
+                                                reversed
+                                                tick={{ fill: '#64748b', fontSize: 14 }}
+                                                label={{ value: 'Recencia (días)', position: 'insideBottom', offset: -15, fill: '#64748b', fontSize: 14 }}
+                                            />
+                                            <YAxis
+                                                type="number"
+                                                dataKey="y"
+                                                name="Frecuencia"
+                                                unit=" pedidos"
+                                                tick={{ fill: '#64748b', fontSize: 14 }}
+                                                label={{ value: 'Frecuencia (pedidos)', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 14 }}
+                                            />
+                                            <ZAxis type="number" dataKey="r" range={[100, 800]} />
+                                            <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                                            {Object.keys(rfmData.stats).map((segment) => {
+                                                const segmentInfo = getSegmentInfo(segment);
+                                                const data = scatterData.filter(d => d.segment === segment);
+                                                return (
+                                                    <Scatter
+                                                        key={segment}
+                                                        name={segmentInfo.name}
+                                                        data={data}
+                                                        fill={segmentInfo.color}
+                                                        fillOpacity={0.7}
+                                                        stroke="#fff"
+                                                        strokeWidth={2}
+                                                    />
+                                                );
+                                            })}
+                                        </ScatterChart>
+                                    </ResponsiveContainer>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-4 text-center italic">
+                                        💡 El tamaño de los círculos representa el valor monetario del cliente
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    </motion.div>
+                </div>
+            )}
         </div>
     );
 };

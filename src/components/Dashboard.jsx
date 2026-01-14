@@ -17,6 +17,7 @@ const Dashboard = ({ data, onBack }) => {
     // New filter states
     const [selectedCities, setSelectedCities] = useState([]);
     const [minQuantity, setMinQuantity] = useState('');
+    const [topSKUsFilter, setTopSKUsFilter] = useState('all'); // 'all', 'top5', 'top10', 'top20'
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -68,6 +69,33 @@ const Dashboard = ({ data, onBack }) => {
         return Object.values(map);
     }, [filteredData]);
 
+    // Calculate Top SKUs from all data
+    const topSKUs = useMemo(() => {
+        const skuMap = {};
+
+        // Aggregate all SKUs across all orders
+        data.forEach(order => {
+            order.items?.forEach(item => {
+                const sku = item.sku || item.description;
+                if (!sku) return;
+
+                if (!skuMap[sku]) {
+                    skuMap[sku] = {
+                        sku: sku,
+                        description: item.description || sku,
+                        totalQuantity: 0,
+                        totalRevenue: 0
+                    };
+                }
+                skuMap[sku].totalQuantity += item.quantity || 0;
+                skuMap[sku].totalRevenue += item.lineTotal || 0;
+            });
+        });
+
+        // Sort by quantity and return array
+        return Object.values(skuMap).sort((a, b) => b.totalQuantity - a.totalQuantity);
+    }, [data]);
+
     // 3. Apply Filters (City, Quantity, Recurring)
     const displayList = useMemo(() => {
         if (!query || query.trim().length < 3) {
@@ -102,8 +130,24 @@ const Dashboard = ({ data, onBack }) => {
             list = list.filter(c => c.orders.length > 1);
         }
 
+        // Apply Top SKUs Filter
+        if (topSKUsFilter !== 'all') {
+            const topCount = parseInt(topSKUsFilter.replace('top', ''));
+            const topSKUsList = topSKUs.slice(0, topCount).map(s => s.sku);
+
+            list = list.filter(c => {
+                // Check if customer has bought any of the top SKUs
+                return c.orders.some(order =>
+                    order.items?.some(item => {
+                        const sku = item.sku || item.description;
+                        return topSKUsList.includes(sku);
+                    })
+                );
+            });
+        }
+
         return list;
-    }, [customers, selectedCities, minQuantity, onlyRecurring, query]);
+    }, [customers, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, topSKUs, query]);
 
     // 5. Apply Sorting
     const sortedList = useMemo(() => {
@@ -293,6 +337,21 @@ const Dashboard = ({ data, onBack }) => {
                             {onlyRecurring ? 'Solo Recurrentes' : 'Mostrar Todos'}
                         </button>
 
+                        {/* Top SKUs Filter - TEMPORARILY HIDDEN */}
+                        {/* TODO: Retomar este filtro más adelante */}
+                        {/*
+                        <select
+                            value={topSKUsFilter}
+                            onChange={(e) => setTopSKUsFilter(e.target.value)}
+                            className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 min-w-[200px]"
+                        >
+                            <option value="all">🏆 Todos los productos</option>
+                            <option value="top5">🏆 Top 5 más vendidos</option>
+                            <option value="top10">🏆 Top 10 más vendidos</option>
+                            <option value="top20">🏆 Top 20 más vendidos</option>
+                        </select>
+                        */}
+
                         {/* View Mode Toggle */}
                         <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl">
                             <button
@@ -387,6 +446,7 @@ const Dashboard = ({ data, onBack }) => {
                                 onClick={() => {
                                     setSelectedCities([]);
                                     setMinQuantity('');
+                                    setTopSKUsFilter('all');
                                 }}
                                 className="flex items-center gap-1.5 px-4 py-2 mt-6 md:mt-0 md:ml-auto bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-full text-sm font-semibold transition-all border border-rose-200 dark:border-rose-500/30"
                             >

@@ -120,8 +120,10 @@ export const scoreRFM = (customers) => {
  * @returns {Array} Customers with segment classification
  */
 export const segmentCustomers = (customers) => {
-    return customers.map(customer => {
-        const { recencyScore: r, frequencyScore: f, monetaryScore: m } = customer.rfm;
+    const uncategorized = [];
+
+    const segmented = customers.map(customer => {
+        const { recencyScore: r, frequencyScore: f, monetaryScore: m, frequency } = customer.rfm;
         let segment = '';
 
         // Champions: Best customers
@@ -136,9 +138,17 @@ export const segmentCustomers = (customers) => {
         else if (r >= 4 && f >= 2 && f <= 3 && m >= 2 && m <= 3) {
             segment = 'Potential Loyalists';
         }
-        // New Customers: Just started buying
+        // New Customers (by score): Recently purchased, only 1 time
         else if (r >= 4 && f === 1) {
             segment = 'New Customers';
+        }
+        // NUEVO: Nuevos Compradores - Exactly 1 purchase (any recency)
+        else if (frequency === 1) {
+            segment = 'Nuevos Compradores';
+        }
+        // NUEVO: Compradores Ocasionales - 2 or 3 purchases
+        else if (frequency === 2 || frequency === 3) {
+            segment = 'Compradores Ocasionales';
         }
         // At Risk: Used to be good, declining activity
         else if (r >= 2 && r <= 3 && f >= 3 && m >= 3) {
@@ -156,9 +166,17 @@ export const segmentCustomers = (customers) => {
         else if (r === 1 && f === 1 && m === 1) {
             segment = 'Lost';
         }
-        // Others
+        // If still not categorized, log it
         else {
-            segment = 'Others';
+            uncategorized.push({
+                name: customer.name,
+                frequency: customer.rfm.frequency,
+                recency: customer.rfm.recency,
+                monetary: customer.rfm.monetary,
+                scores: { r, f, m }
+            });
+            // Fallback to Compradores Ocasionales for safety
+            segment = 'Compradores Ocasionales';
         }
 
         return {
@@ -169,6 +187,16 @@ export const segmentCustomers = (customers) => {
             }
         };
     });
+
+    // Log uncategorized customers for debugging
+    if (uncategorized.length > 0) {
+        console.warn('⚠️ Clientes NO catalogados:', uncategorized.length);
+        console.table(uncategorized);
+    } else {
+        console.log('✅ Todos los clientes fueron catalogados correctamente');
+    }
+
+    return segmented;
 };
 
 /**
@@ -218,6 +246,26 @@ export const getSegmentInfo = (segment) => {
             tooltip: 'Clientes que realizaron su primera compra recientemente. Es crucial crear una buena primera impresión.',
             priority: 4
         },
+        'Nuevos Compradores': {
+            name: 'Nuevos Compradores',
+            icon: '🌱',
+            color: '#22C55E',
+            bgColor: '#F0FDF4',
+            darkBgColor: '#166534',
+            description: 'Han realizado exactamente una compra',
+            tooltip: 'Clientes con una sola compra. Oportunidad de convertirlos en compradores recurrentes con estrategias de seguimiento.',
+            priority: 5
+        },
+        'Compradores Ocasionales': {
+            name: 'Compradores Ocasionales',
+            icon: '🔄',
+            color: '#A855F7',
+            bgColor: '#FAF5FF',
+            darkBgColor: '#581C87',
+            description: 'Han comprado 2 o 3 veces',
+            tooltip: 'Clientes que compran ocasionalmente (2-3 pedidos). Están en riesgo de no volver o pueden convertirse en compradores regulares.',
+            priority: 6
+        },
         'At Risk': {
             name: 'En Riesgo',
             icon: '💤',
@@ -226,7 +274,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#78350F',
             description: 'Clientes valiosos que están perdiendo actividad',
             tooltip: 'Clientes que solían comprar frecuentemente pero han reducido su actividad. Necesitan atención para evitar perderlos.',
-            priority: 5
+            priority: 7
         },
         "Can't Lose Them": {
             name: 'Críticos',
@@ -236,7 +284,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#7F1D1D',
             description: 'Alto valor pero sin compras recientes',
             tooltip: 'Clientes de alto gasto que no han comprado recientemente. Requieren acción inmediata para recuperarlos.',
-            priority: 6
+            priority: 8
         },
         'Hibernating': {
             name: 'Inactivos',
@@ -246,7 +294,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#374151',
             description: 'Baja actividad, pueden estar perdidos',
             tooltip: 'Clientes con baja frecuencia y que no han comprado recientemente. Difícil pero posible de recuperar.',
-            priority: 7
+            priority: 9
         },
         'Lost': {
             name: 'Perdidos',
@@ -256,21 +304,11 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#1F2937',
             description: 'No han comprado en mucho tiempo',
             tooltip: 'Clientes que no han mostrado actividad en largo tiempo. Gastos mínimos, frecuencia mínima y recencia mínima.',
-            priority: 8
-        },
-        'Others': {
-            name: 'Otros',
-            icon: '📊',
-            color: '#8B5CF6',
-            bgColor: '#F5F3FF',
-            darkBgColor: '#4C1D95',
-            description: 'Patrones de compra variados',
-            tooltip: 'Clientes con combinaciones de RFM que no encajan en las categorías principales. Requieren análisis individual.',
-            priority: 9
+            priority: 10
         }
     };
 
-    return segmentData[segment] || segmentData['Others'];
+    return segmentData[segment] || segmentData['Compradores Ocasionales'];
 };
 
 /**

@@ -4,6 +4,8 @@ import { performRFMAnalysis, getSegmentInfo } from '../utils/rfmAnalysis';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ScatterChart, Scatter, XAxis, YAxis, ZAxis, Legend, CartesianGrid } from 'recharts';
 import { Users, TrendingUp, Target, DollarSign, Download, Filter, X, Maximize2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const RFMAnalysis = ({ customers }) => {
     const [selectedSegments, setSelectedSegments] = useState([]);
@@ -73,16 +75,25 @@ const RFMAnalysis = ({ customers }) => {
         }))
         .sort((a, b) => a.info.priority - b.info.priority);
 
-    const scatterData = filteredCustomers.map(c => ({
-        x: c.rfm.recency,
-        y: c.rfm.frequency,
-        z: c.rfm.monetary,
-        segment: c.rfm.segment,
-        name: c.name,
-        phone: c.phone || 'No disponible',
-        r: Math.max(5, Math.min(30, c.rfm.monetaryScore * 6)),
-        info: getSegmentInfo(c.rfm.segment)
-    }));
+    const scatterData = filteredCustomers.map(c => {
+        // Find the most recent order date
+        const lastPurchaseDate = c.orders.reduce((latest, order) => {
+            const orderDate = new Date(order.orderDate);
+            return orderDate > latest ? orderDate : latest;
+        }, new Date(0));
+
+        return {
+            x: c.rfm.recency,
+            y: c.rfm.frequency,
+            z: c.rfm.monetary,
+            segment: c.rfm.segment,
+            name: c.name,
+            phone: c.phone || 'No disponible',
+            lastPurchaseDate: lastPurchaseDate,
+            r: Math.max(5, Math.min(30, c.rfm.monetaryScore * 6)),
+            info: getSegmentInfo(c.rfm.segment)
+        };
+    });
 
     // Custom tooltip for pie chart
     const PieTooltip = ({ active, payload }) => {
@@ -114,6 +125,7 @@ const RFMAnalysis = ({ customers }) => {
                 </div>
                 <div className="text-xs space-y-1">
                     <p><span className="text-slate-400">📱 Teléfono:</span> <span className="font-bold text-white font-mono">{data.phone}</span></p>
+                    <p><span className="text-slate-400">📅 Última compra:</span> <span className="font-bold text-white">{format(data.lastPurchaseDate, 'dd/MM/yyyy', { locale: es })}</span></p>
                     <p><span className="text-slate-400">Recencia:</span> <span className="font-bold text-white">{data.x} días</span></p>
                     <p><span className="text-slate-400">Frecuencia:</span> <span className="font-bold text-white">{data.y} pedidos</span></p>
                     <p><span className="text-slate-400">Monetario:</span> <span className="font-bold text-white">L. {data.z.toLocaleString()}</span></p>
@@ -279,6 +291,7 @@ const RFMAnalysis = ({ customers }) => {
                                 dataKey="y"
                                 name="Frecuencia"
                                 unit=" pedidos"
+                                allowDecimals={false}
                                 tick={{ fill: '#64748b', fontSize: 11 }}
                                 label={{ value: 'Frecuencia', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }}
                             />
@@ -483,6 +496,7 @@ const RFMAnalysis = ({ customers }) => {
                                                 dataKey="y"
                                                 name="Frecuencia"
                                                 unit=" pedidos"
+                                                allowDecimals={false}
                                                 tick={{ fill: '#64748b', fontSize: 14 }}
                                                 label={{ value: 'Frecuencia (pedidos)', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 14 }}
                                             />

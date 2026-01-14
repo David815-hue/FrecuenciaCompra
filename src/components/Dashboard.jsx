@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart3, TrendingUp } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import MonthVisualizer from './MonthVisualizer';
 import ProductDetailsModal from './ProductDetailsModal';
+import RFMAnalysis from './RFMAnalysis';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -11,6 +12,7 @@ const Dashboard = ({ data, onBack }) => {
     const [query, setQuery] = useState('');
     const [onlyRecurring, setOnlyRecurring] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(null);
+    const [viewMode, setViewMode] = useState('table'); // 'table' or 'rfm'
 
     // New filter states
     const [selectedCities, setSelectedCities] = useState([]);
@@ -290,6 +292,34 @@ const Dashboard = ({ data, onBack }) => {
                             <Filter size={18} />
                             {onlyRecurring ? 'Solo Recurrentes' : 'Mostrar Todos'}
                         </button>
+
+                        {/* View Mode Toggle */}
+                        <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl">
+                            <button
+                                onClick={() => setViewMode('table')}
+                                className={`
+                                    flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm
+                                    ${viewMode === 'table'
+                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}
+                                `}
+                            >
+                                <BarChart3 size={16} />
+                                Tabla
+                            </button>
+                            <button
+                                onClick={() => setViewMode('rfm')}
+                                className={`
+                                    flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm
+                                    ${viewMode === 'rfm'
+                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}
+                                `}
+                            >
+                                <TrendingUp size={16} />
+                                Análisis RFM
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -368,266 +398,276 @@ const Dashboard = ({ data, onBack }) => {
                 )}
             </header>
 
-            {/* Table Area */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] shadow-xl shadow-slate-200/50 dark:shadow-black/50 border border-white/60 dark:border-slate-800 overflow-hidden transition-colors duration-300 mb-8">
-                <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
-                                <th
-                                    onClick={() => handleSort('name')}
-                                    className="px-8 py-6 w-[22rem] cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        Cliente
-                                        {sortConfig.key === 'name' && (
-                                            sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
-                                        )}
-                                    </div>
-                                </th>
-                                <th
-                                    onClick={() => handleSort('identity')}
-                                    className="px-6 py-6 w-56 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        Identidad
-                                        {sortConfig.key === 'identity' && (
-                                            sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
-                                        )}
-                                    </div>
-                                </th>
-                                <th
-                                    onClick={() => handleSort('totalInvestment')}
-                                    className="px-6 py-6 w-48 text-right cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
-                                >
-                                    <div className="flex items-center justify-end gap-2">
-                                        Total
-                                        {sortConfig.key === 'totalInvestment' && (
-                                            sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
-                                        )}
-                                    </div>
-                                </th>
-                                <th className="px-6 py-6 min-w-[300px]">
-                                    <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity cursor-help" title="Mapa de calor de compras mensuales">
-                                        <Calendar size={14} />
-                                        <span>Frecuencia Mensual</span>
-                                        <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
-                                            {dateRange.min.getFullYear()}
-                                        </span>
-                                    </div>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                            {paginatedList.map((customer, idx) => (
-                                <tr
-                                    key={`${customer.name}-${idx}`}
-                                    className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group relative"
-                                >
-                                    <td className="px-8 py-6 align-top">
-                                        <div className="flex gap-4">
-                                            {/* Avatar Placeholder */}
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-sm shrink-0 shadow-inner">
-                                                {customer.name.substring(0, 2).toUpperCase()}
+            {/* Conditional Content: Table or RFM */}
+            {viewMode === 'table' ? (
+                <>
+                    {/* Table Area */}
+                    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] shadow-xl shadow-slate-200/50 dark:shadow-black/50 border border-white/60 dark:border-slate-800 overflow-hidden transition-colors duration-300 mb-8">
+                        <div className="overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                        <th
+                                            onClick={() => handleSort('name')}
+                                            className="px-8 py-6 w-[22rem] cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                Cliente
+                                                {sortConfig.key === 'name' && (
+                                                    sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                                )}
                                             </div>
+                                        </th>
+                                        <th
+                                            onClick={() => handleSort('identity')}
+                                            className="px-6 py-6 w-56 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                Identidad
+                                                {sortConfig.key === 'identity' && (
+                                                    sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th
+                                            onClick={() => handleSort('totalInvestment')}
+                                            className="px-6 py-6 w-48 text-right cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                Total
+                                                {sortConfig.key === 'totalInvestment' && (
+                                                    sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-6 min-w-[300px]">
+                                            <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity cursor-help" title="Mapa de calor de compras mensuales">
+                                                <Calendar size={14} />
+                                                <span>Frecuencia Mensual</span>
+                                                <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
+                                                    {dateRange.min.getFullYear()}
+                                                </span>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                    {paginatedList.map((customer, idx) => (
+                                        <tr
+                                            key={`${customer.name}-${idx}`}
+                                            className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group relative"
+                                        >
+                                            <td className="px-8 py-6 align-top">
+                                                <div className="flex gap-4">
+                                                    {/* Avatar Placeholder */}
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-sm shrink-0 shadow-inner">
+                                                        {customer.name.substring(0, 2).toUpperCase()}
+                                                    </div>
 
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-bold text-slate-800 dark:text-slate-200 text-base mb-1 truncate">{customer.name}</div>
-                                                <div className="flex flex-col gap-1">
-                                                    {customer.email && (
-                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
-                                                            <Mail size={12} />
-                                                            {customer.email}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-bold text-slate-800 dark:text-slate-200 text-base mb-1 truncate">{customer.name}</div>
+                                                        <div className="flex flex-col gap-1">
+                                                            {customer.email && (
+                                                                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
+                                                                    <Mail size={12} />
+                                                                    {customer.email}
+                                                                </div>
+                                                            )}
+                                                            {customer.phone && (
+                                                                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                                                                    <Phone size={12} />
+                                                                    {customer.phone}
+                                                                </div>
+                                                            )}
+                                                            {customer.city && (
+                                                                <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                                                                    <MapPin size={12} />
+                                                                    {customer.city}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
-                                                    {customer.phone && (
-                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
-                                                            <Phone size={12} />
-                                                            {customer.phone}
-                                                        </div>
-                                                    )}
-                                                    {customer.city && (
-                                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                                                            <MapPin size={12} />
-                                                            {customer.city}
-                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            <td className="px-6 py-6 align-top">
+                                                <div className="flex flex-col items-start gap-2">
+                                                    <div className="font-mono text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                        {customer.identity}
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                                                        {customer.orders.length} pedidos
+                                                    </span>
+                                                </div>
+                                            </td>
+
+                                            <td className="px-6 py-6 align-top text-right">
+                                                <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight">
+                                                    L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                </div>
+                                                <div className="text-xs text-slate-400 dark:text-slate-500 font-medium">Total acumulado</div>
+                                            </td>
+
+                                            <td className="px-6 py-6 align-top">
+                                                <MonthVisualizer
+                                                    orders={customer.orders}
+                                                    minDate={dateRange.min}
+                                                    maxDate={dateRange.max}
+                                                    onClick={handleMonthClick(customer)}
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+
+                                    {/* Empty State */}
+                                    {displayList.length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="py-24 text-center">
+                                                <div className="flex flex-col items-center max-w-md mx-auto">
+                                                    <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 animate-pulse transition-colors">
+                                                        <Search size={40} className="text-slate-200 dark:text-slate-600" />
+                                                    </div>
+
+                                                    {query.length >= 3 ? (
+                                                        <>
+                                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No se encontraron resultados</h3>
+                                                            <p className="text-slate-500 dark:text-slate-400">Intenta buscar con otro nombre, SKU o número de teléfono.</p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Comienza tu búsqueda</h3>
+                                                            <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                                Ingresa el <span className="text-indigo-600 dark:text-indigo-400 font-bold">SKU</span>, <span className="text-indigo-600 dark:text-indigo-400 font-bold">nombre</span> o <span className="text-indigo-600 dark:text-indigo-400 font-bold">teléfono</span> del cliente para ver su historial detallado.
+                                                            </p>
+                                                        </>
                                                     )}
                                                 </div>
-                                            </div>
-                                        </div>
-                                    </td>
-
-                                    <td className="px-6 py-6 align-top">
-                                        <div className="flex flex-col items-start gap-2">
-                                            <div className="font-mono text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                                                {customer.identity}
-                                            </div>
-                                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                                {customer.orders.length} pedidos
-                                            </span>
-                                        </div>
-                                    </td>
-
-                                    <td className="px-6 py-6 align-top text-right">
-                                        <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight">
-                                            L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                        </div>
-                                        <div className="text-xs text-slate-400 dark:text-slate-500 font-medium">Total acumulado</div>
-                                    </td>
-
-                                    <td className="px-6 py-6 align-top">
-                                        <MonthVisualizer
-                                            orders={customer.orders}
-                                            minDate={dateRange.min}
-                                            maxDate={dateRange.max}
-                                            onClick={handleMonthClick(customer)}
-                                        />
-                                    </td>
-                                </tr>
-                            ))}
-
-                            {/* Empty State */}
-                            {displayList.length === 0 && (
-                                <tr>
-                                    <td colSpan={4} className="py-24 text-center">
-                                        <div className="flex flex-col items-center max-w-md mx-auto">
-                                            <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 animate-pulse transition-colors">
-                                                <Search size={40} className="text-slate-200 dark:text-slate-600" />
-                                            </div>
-
-                                            {query.length >= 3 ? (
-                                                <>
-                                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No se encontraron resultados</h3>
-                                                    <p className="text-slate-500 dark:text-slate-400">Intenta buscar con otro nombre, SKU o número de teléfono.</p>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Comienza tu búsqueda</h3>
-                                                    <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                        Ingresa el <span className="text-indigo-600 dark:text-indigo-400 font-bold">SKU</span>, <span className="text-indigo-600 dark:text-indigo-400 font-bold">nombre</span> o <span className="text-indigo-600 dark:text-indigo-400 font-bold">teléfono</span> del cliente para ver su historial detallado.
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* Pagination Controls */}
-            {displayList.length > 0 && totalPages > 1 && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 mb-8"
-                >
-                    {/* Page Info */}
-                    <div className="text-sm text-slate-600 dark:text-slate-400 font-medium">
-                        Mostrando <span className="font-bold text-slate-900 dark:text-white">{startIndex + 1}</span> a{' '}
-                        <span className="font-bold text-slate-900 dark:text-white">{Math.min(endIndex, displayList.length)}</span> de{' '}
-                        <span className="font-bold text-slate-900 dark:text-white">{displayList.length}</span> resultados
-                    </div>
-
-                    {/* Pagination Buttons */}
-                    <div className="flex items-center gap-2">
-                        {/* Previous Button */}
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                            disabled={currentPage === 1}
-                            className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        >
-                            <ChevronLeft size={18} />
-                        </button>
-
-                        {/* Page Numbers */}
-                        <div className="flex gap-1">
-                            {(() => {
-                                const pages = [];
-                                const showPages = 5; // Max page buttons to show
-                                let startPage = Math.max(1, currentPage - Math.floor(showPages / 2));
-                                let endPage = Math.min(totalPages, startPage + showPages - 1);
-
-                                // Adjust start if we're near the end
-                                if (endPage - startPage < showPages - 1) {
-                                    startPage = Math.max(1, endPage - showPages + 1);
-                                }
-
-                                // First page + ellipsis
-                                if (startPage > 1) {
-                                    pages.push(
-                                        <button
-                                            key={1}
-                                            onClick={() => setCurrentPage(1)}
-                                            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                                        >
-                                            1
-                                        </button>
-                                    );
-                                    if (startPage > 2) {
-                                        pages.push(<span key="ellipsis1" className="px-2 text-slate-400 dark:text-slate-600">...</span>);
-                                    }
-                                }
-
-                                // Page buttons
-                                for (let i = startPage; i <= endPage; i++) {
-                                    pages.push(
-                                        <button
-                                            key={i}
-                                            onClick={() => setCurrentPage(i)}
-                                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${currentPage === i
-                                                ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
-                                                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                                }`}
-                                        >
-                                            {i}
-                                        </button>
-                                    );
-                                }
-
-                                // Ellipsis + last page
-                                if (endPage < totalPages) {
-                                    if (endPage < totalPages - 1) {
-                                        pages.push(<span key="ellipsis2" className="px-2 text-slate-400 dark:text-slate-600">...</span>);
-                                    }
-                                    pages.push(
-                                        <button
-                                            key={totalPages}
-                                            onClick={() => setCurrentPage(totalPages)}
-                                            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                                        >
-                                            {totalPages}
-                                        </button>
-                                    );
-                                }
-
-                                return pages;
-                            })()}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-
-                        {/* Next Button */}
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                            disabled={currentPage === totalPages}
-                            className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        >
-                            <ChevronRight size={18} />
-                        </button>
                     </div>
-                </motion.div>
-            )}
 
-            {/* Product Details Modal */}
-            <ProductDetailsModal
-                isOpen={selectedMonth !== null}
-                onClose={handleCloseModal}
-                customerName={selectedMonth?.customerName || ''}
-                monthLabel={selectedMonth?.monthLabel || ''}
-                orderCount={selectedMonth?.orderCount || 0}
-                items={selectedMonth?.items || []}
-            />
+                    {/* Pagination Controls */}
+                    {displayList.length > 0 && totalPages > 1 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 mb-8"
+                        >
+                            {/* Page Info */}
+                            <div className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+                                Mostrando <span className="font-bold text-slate-900 dark:text-white">{startIndex + 1}</span> a{' '}
+                                <span className="font-bold text-slate-900 dark:text-white">{Math.min(endIndex, displayList.length)}</span> de{' '}
+                                <span className="font-bold text-slate-900 dark:text-white">{displayList.length}</span> resultados
+                            </div>
+
+                            {/* Pagination Buttons */}
+                            <div className="flex items-center gap-2">
+                                {/* Previous Button */}
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <ChevronLeft size={18} />
+                                </button>
+
+                                {/* Page Numbers */}
+                                <div className="flex gap-1">
+                                    {(() => {
+                                        const pages = [];
+                                        const showPages = 5; // Max page buttons to show
+                                        let startPage = Math.max(1, currentPage - Math.floor(showPages / 2));
+                                        let endPage = Math.min(totalPages, startPage + showPages - 1);
+
+                                        // Adjust start if we're near the end
+                                        if (endPage - startPage < showPages - 1) {
+                                            startPage = Math.max(1, endPage - showPages + 1);
+                                        }
+
+                                        // First page + ellipsis
+                                        if (startPage > 1) {
+                                            pages.push(
+                                                <button
+                                                    key={1}
+                                                    onClick={() => setCurrentPage(1)}
+                                                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                                                >
+                                                    1
+                                                </button>
+                                            );
+                                            if (startPage > 2) {
+                                                pages.push(<span key="ellipsis1" className="px-2 text-slate-400 dark:text-slate-600">...</span>);
+                                            }
+                                        }
+
+                                        // Page buttons
+                                        for (let i = startPage; i <= endPage; i++) {
+                                            pages.push(
+                                                <button
+                                                    key={i}
+                                                    onClick={() => setCurrentPage(i)}
+                                                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${currentPage === i
+                                                        ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
+                                                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                        }`}
+                                                >
+                                                    {i}
+                                                </button>
+                                            );
+                                        }
+
+                                        // Ellipsis + last page
+                                        if (endPage < totalPages) {
+                                            if (endPage < totalPages - 1) {
+                                                pages.push(<span key="ellipsis2" className="px-2 text-slate-400 dark:text-slate-600">...</span>);
+                                            }
+                                            pages.push(
+                                                <button
+                                                    key={totalPages}
+                                                    onClick={() => setCurrentPage(totalPages)}
+                                                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                                                >
+                                                    {totalPages}
+                                                </button>
+                                            );
+                                        }
+
+                                        return pages;
+                                    })()}
+                                </div>
+
+                                {/* Next Button */}
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <ChevronRight size={18} />
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Product Details Modal */}
+                    <ProductDetailsModal
+                        isOpen={selectedMonth !== null}
+                        onClose={handleCloseModal}
+                        customerName={selectedMonth?.customerName || ''}
+                        monthLabel={selectedMonth?.monthLabel || ''}
+                        orderCount={selectedMonth?.orderCount || 0}
+                        items={selectedMonth?.items || []}
+                    />
+                </>
+            ) : (
+                /* RFM Analysis View */
+                <div className="mb-8">
+                    <RFMAnalysis customers={displayList} />
+                </div>
+            )}
         </div>
     );
 };

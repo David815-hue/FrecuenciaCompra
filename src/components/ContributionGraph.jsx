@@ -78,28 +78,25 @@ const ContributionGraph = ({ orders }) => {
         const markers = [];
         let currentYear = null;
         let weekIndex = 0;
+        const yearsAdded = new Set();
 
-        days.forEach((day) => {
+        days.forEach((day, dayIndex) => {
             const year = getYear(day);
 
-            if (day.getDay() === 0) {
-                if (currentYear !== null && year !== currentYear) {
-                    markers.push({
-                        year: year,
-                        weekIndex: weekIndex
-                    });
-                }
+            // Track weeks (every Sunday starts a new new week)
+            if (day.getDay() === 0 && dayIndex > 0) {
                 weekIndex++;
             }
 
-            if (currentYear === null) {
+            // Add year marker only once when we first encounter it
+            if (currentYear !== year && !yearsAdded.has(year)) {
                 markers.push({
                     year: year,
-                    weekIndex: 0
+                    weekIndex: weekIndex
                 });
+                yearsAdded.add(year);
+                currentYear = year;
             }
-
-            currentYear = year;
         });
 
         return { allDays: days, yearMarkers: markers };

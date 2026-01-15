@@ -4,7 +4,7 @@ import Dashboard from './components/Dashboard';
 import ThemeToggle from './components/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets } from './utils/dataProcessing';
-import { saveCustomersToFirestore, loadCustomersFromFirestore, clearAllData } from './utils/firestoreUtils';
+import { saveCustomersToFirestore, loadCustomersFromFirestore, clearAllData } from './utils/supabaseUtils';
 import { Cloud, CloudOff, RefreshCw, Trash2, Activity } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 

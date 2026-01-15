@@ -521,7 +521,7 @@ const Dashboard = ({ data, onBack }) => {
                                                 <div className="flex gap-4">
                                                     {/* Avatar Placeholder */}
                                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-sm shrink-0 shadow-inner">
-                                                        {customer.name.substring(0, 2).toUpperCase()}
+                                                        {(customer.name || 'N/A').substring(0, 2).toUpperCase()}
                                                     </div>
 
                                                     <div className="flex-1 min-w-0">

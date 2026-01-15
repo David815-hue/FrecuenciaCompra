@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart3, TrendingUp } from 'lucide-react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart3, TrendingUp, Activity } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import MonthVisualizer from './MonthVisualizer';
 import ProductDetailsModal from './ProductDetailsModal';
+import ContributionModal from './ContributionModal';
 import RFMAnalysis from './RFMAnalysis';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -12,6 +13,7 @@ const Dashboard = ({ data, onBack }) => {
     const [query, setQuery] = useState('');
     const [onlyRecurring, setOnlyRecurring] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(null);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'rfm'
 
     // New filter states
@@ -569,12 +571,21 @@ const Dashboard = ({ data, onBack }) => {
                                             </td>
 
                                             <td className="px-6 py-6 align-top">
-                                                <MonthVisualizer
-                                                    orders={customer.orders}
-                                                    minDate={dateRange.min}
-                                                    maxDate={dateRange.max}
-                                                    onClick={handleMonthClick(customer)}
-                                                />
+                                                <div className="flex items-center gap-3">
+                                                    <MonthVisualizer
+                                                        orders={customer.orders}
+                                                        minDate={dateRange.min}
+                                                        maxDate={dateRange.max}
+                                                        onClick={handleMonthClick(customer)}
+                                                    />
+                                                    <button
+                                                        onClick={() => setSelectedCustomer(customer)}
+                                                        className="shrink-0 w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-all hover:scale-110 hover:shadow-md"
+                                                        title="Ver historial de compras completo"
+                                                    >
+                                                        <Activity size={16} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -720,6 +731,15 @@ const Dashboard = ({ data, onBack }) => {
                         monthLabel={selectedMonth?.monthLabel || ''}
                         orderCount={selectedMonth?.orderCount || 0}
                         items={selectedMonth?.items || []}
+                    />
+
+                    {/* Contribution Graph Modal */}
+                    <ContributionModal
+                        isOpen={selectedCustomer !== null}
+                        onClose={() => setSelectedCustomer(null)}
+                        customerName={selectedCustomer?.name || ''}
+                        orders={selectedCustomer?.orders || []}
+                        searchQuery={query}
                     />
                 </>
             ) : (

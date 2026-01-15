@@ -4,8 +4,11 @@ import { es } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ProductSummary = ({ items }) => {
-    // Group by SKU
+    // Group by SKU, excluding delivery service
     const grouped = items.reduce((acc, item) => {
+        // Skip delivery service SKU
+        if (item.sku === '20000025') return acc;
+
         if (!acc[item.sku]) {
             acc[item.sku] = { ...item, totalQuantity: 0, totalAmount: 0 };
         }
@@ -104,12 +107,13 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                 const count = data ? data.count : 0;
 
                 const monthLabel = format(dateObj, 'MMM', { locale: es });
-                const yearLabel = format(dateObj, 'yy');
-                const firstChar = monthLabel[0].toUpperCase();
-
-                const isJan = dateObj.getMonth() === 0;
+                const monthAbbr = monthLabel.substring(0, 3); // First 3 letters
                 const isHovered = hoveredMonth === key;
                 const isShaking = shakingMonth === key;
+
+                // Check if year changed from previous month
+                const prevMonth = idx > 0 ? timeline[idx - 1] : null;
+                const yearChanged = prevMonth && dateObj.getFullYear() !== prevMonth.getFullYear();
 
                 return (
                     <motion.div
@@ -117,7 +121,6 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                         className={`
                             relative flex-1 h-9 flex items-center justify-center text-[10px] transition-all duration-200
                             ${getIntensityClass(count)}
-                            ${isHovered ? 'z-20 scale-110 shadow-xl ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900 rounded-lg' : 'z-0'}
                             ${count > 0 ? 'active:scale-95' : ''}
                         `}
                         animate={isShaking ? { x: [0, -4, 4, -4, 4, 0] } : {}}
@@ -126,16 +129,14 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                         onMouseLeave={() => setHoveredMonth(null)}
                         onClick={() => handleMonthClick(key, data)}
                     >
-                        {/* Label */}
-                        <span className={`relative z-10 flex flex-col items-center leading-none ${count > 3 ? 'text-white/90' : ''} ${!count ? 'opacity-60' : ''}`}>
-                            {firstChar}
+                        {/* Label - 3 letters */}
+                        <span className={`relative z-10 flex flex-col items-center leading-none text-[9px] font-bold ${count > 3 ? 'text-white/90' : ''} ${!count ? 'opacity-60' : ''}`}>
+                            {monthAbbr}
                         </span>
 
-                        {/* Year Marker */}
-                        {isJan && (
-                            <span className="absolute -top-4 left-0 text-[8px] font-extrabold text-slate-400/80 dark:text-slate-500 z-10 bg-slate-50 dark:bg-slate-800 px-1 rounded-full border border-slate-100 dark:border-slate-700">
-                                {yearLabel}
-                            </span>
+                        {/* Year Separator Line - only when year changes */}
+                        {yearChanged && (
+                            <div className="absolute -left-[1px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-400 dark:from-indigo-500 dark:via-indigo-400 dark:to-indigo-500 z-30" />
                         )}
 
                         {/* Tooltip */}

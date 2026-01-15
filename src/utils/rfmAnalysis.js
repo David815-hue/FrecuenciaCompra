@@ -142,9 +142,13 @@ export const segmentCustomers = (customers) => {
         else if (r >= 4 && f === 1) {
             segment = 'New Customers';
         }
-        // NUEVO: Nuevos Compradores - Exactly 1 purchase (any recency)
-        else if (frequency === 1) {
-            segment = 'Nuevos Compradores';
+        // NUEVO: Nuevos Compradores Recientes - 1 purchase in last 60 days
+        else if (frequency === 1 && customer.rfm.recency <= 60) {
+            segment = 'Nuevos Compradores Recientes';
+        }
+        // NUEVO: Nuevos Compradores Inactivos - 1 purchase more than 60 days ago
+        else if (frequency === 1 && customer.rfm.recency > 60) {
+            segment = 'Nuevos Compradores Inactivos';
         }
         // NUEVO: Compradores Ocasionales - 2 or 3 purchases
         else if (frequency === 2 || frequency === 3) {
@@ -246,15 +250,25 @@ export const getSegmentInfo = (segment) => {
             tooltip: 'Clientes que realizaron su primera compra recientemente. Es crucial crear una buena primera impresión.',
             priority: 4
         },
-        'Nuevos Compradores': {
-            name: 'Nuevos Compradores',
+        'Nuevos Compradores Recientes': {
+            name: 'Nuevos Compradores Recientes',
             icon: '🌱',
-            color: '#22C55E',
-            bgColor: '#F0FDF4',
-            darkBgColor: '#166534',
-            description: 'Han realizado exactamente una compra',
-            tooltip: 'Clientes con una sola compra. Oportunidad de convertirlos en compradores recurrentes con estrategias de seguimiento.',
+            color: '#84CC16',
+            bgColor: '#F7FEE7',
+            darkBgColor: '#365314',
+            description: 'Una compra en los últimos 60 días',
+            tooltip: 'Clientes con una sola compra reciente (≤60 días). Alta oportunidad de convertirlos en compradores recurrentes.',
             priority: 5
+        },
+        'Nuevos Compradores Inactivos': {
+            name: 'Nuevos Compradores Inactivos',
+            icon: '💤',
+            color: '#1F2937',
+            bgColor: '#F9FAFB',
+            darkBgColor: '#111827',
+            description: 'Una compra hace más de 60 días',
+            tooltip: 'Clientes con una sola compra antigua (>60 días). Requieren reactivación para no perderlos definitivamente.',
+            priority: 6
         },
         'Compradores Ocasionales': {
             name: 'Compradores Ocasionales',
@@ -264,7 +278,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#581C87',
             description: 'Han comprado 2 o 3 veces',
             tooltip: 'Clientes que compran ocasionalmente (2-3 pedidos). Están en riesgo de no volver o pueden convertirse en compradores regulares.',
-            priority: 6
+            priority: 7
         },
         'At Risk': {
             name: 'En Riesgo',
@@ -274,7 +288,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#78350F',
             description: 'Clientes valiosos que están perdiendo actividad',
             tooltip: 'Clientes que solían comprar frecuentemente pero han reducido su actividad. Necesitan atención para evitar perderlos.',
-            priority: 7
+            priority: 8
         },
         "Can't Lose Them": {
             name: 'Críticos',
@@ -284,7 +298,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#7F1D1D',
             description: 'Alto valor pero sin compras recientes',
             tooltip: 'Clientes de alto gasto que no han comprado recientemente. Requieren acción inmediata para recuperarlos.',
-            priority: 8
+            priority: 9
         },
         'Hibernating': {
             name: 'Inactivos',
@@ -294,7 +308,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#374151',
             description: 'Baja actividad, pueden estar perdidos',
             tooltip: 'Clientes con baja frecuencia y que no han comprado recientemente. Difícil pero posible de recuperar.',
-            priority: 9
+            priority: 10
         },
         'Lost': {
             name: 'Perdidos',
@@ -304,7 +318,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#1F2937',
             description: 'No han comprado en mucho tiempo',
             tooltip: 'Clientes que no han mostrado actividad en largo tiempo. Gastos mínimos, frecuencia mínima y recencia mínima.',
-            priority: 10
+            priority: 11
         }
     };
 

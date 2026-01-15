@@ -102,27 +102,36 @@ function App() {
     try {
       console.log('Starting file processing...');
 
-      // 1. Parse Files
+      // 1. Clear existing Firestore data first
+      console.log('🗑️ Clearing existing Firestore data...');
+      const clearResult = await clearAllData();
+      if (clearResult.success) {
+        console.log(`✅ Cleared ${clearResult.deletedCount} existing records from Firestore`);
+      } else {
+        console.warn('⚠️ Could not clear existing data:', clearResult.error);
+      }
+
+      // 2. Parse Files
       const rawAlbatross = await parseExcel(albatrossFile);
       const rawRMS = await parseExcel(rmsFile);
       console.log('Files parsed successfully');
 
-      // 2. Clean Albatross
+      // 3. Clean Albatross
       const cleanedAlbatross = cleanAlbatrossData(rawAlbatross);
       console.log('Albatross data cleaned');
 
-      // 3. Process RMS (Group by Order ID)
+      // 4. Process RMS (Group by Order ID)
       const processedRMS = processRMSData(rawRMS);
       console.log('RMS data processed');
 
-      // 4. Join Data
+      // 5. Join Data
       const finalData = joinDatasets(cleanedAlbatross, processedRMS);
       console.log('Data joined successfully. Total records:', finalData.length);
 
       // Set data immediately (don't wait for cloud save)
       setData(finalData);
 
-      // 5. Save to Firestore in background (non-blocking)
+      // 6. Save to Firestore in background (non-blocking)
       saveToCloud(finalData).catch(error => {
         console.warn('Cloud save failed (non-critical):', error);
         // Don't block UI - just update sync status

@@ -4,12 +4,12 @@ import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyBM9CWHGPc9n6x859m_OLgWq4XwSy9bhcg",
-    authDomain: "frecuenciaclientes.firebaseapp.com",
-    projectId: "frecuenciaclientes",
-    storageBucket: "frecuenciaclientes.firebasestorage.app",
-    messagingSenderId: "130145316766",
-    appId: "1:130145316766:web:f6e088f1696e7ddce5b08f"
+    apiKey: "AIzaSyCZDfLkclF0YdUMwhancuT1nnQtPxbb0nc",
+    authDomain: "frecuencia-5ef24.firebaseapp.com",
+    projectId: "frecuencia-5ef24",
+    storageBucket: "frecuencia-5ef24.firebasestorage.app",
+    messagingSenderId: "425915232080",
+    appId: "1:425915232080:web:d514476e7b02f6db750655"
 };
 
 // Initialize Firebase

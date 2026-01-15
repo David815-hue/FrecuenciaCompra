@@ -7,11 +7,17 @@ import {
     writeBatch,
     serverTimestamp,
     query,
-    orderBy
+    orderBy,
+    limit
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 const COLLECTION_NAME = 'customers';
+
+/**
+ * Utility: Add delay between batches to prevent quota exhaustion
+ */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Save customers to Firestore (optimized for large datasets)
@@ -69,8 +75,8 @@ export const saveCustomersToFirestore = async (orders) => {
             return clean;
         };
 
-        // Step 2: Save in small batches (to avoid 10MB limit)
-        const BATCH_SIZE = 100; // Conservative size
+        // Step 2: Save in small batches (to avoid 10MB limit and quota exhaustion)
+        const BATCH_SIZE = 100; // Optimal size for performance
         let totalSaved = 0;
 
         for (let i = 0; i < customers.length; i += BATCH_SIZE) {
@@ -103,6 +109,11 @@ export const saveCustomersToFirestore = async (orders) => {
             await batch.commit();
             totalSaved += chunk.length;
             console.log(`✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}: Saved ${totalSaved}/${customers.length} customers`);
+
+            // Add delay between batches to prevent quota exhaustion
+            if (i + BATCH_SIZE < customers.length) {
+                await delay(500); // 500ms delay between batches
+            }
         }
 
         console.log(`🎉 Successfully saved ${totalSaved} customers to Firestore`);
@@ -178,21 +189,54 @@ export const loadCustomersFromFirestore = async () => {
 /**
  * Clear all customer data from Firestore
  * Use with caution!
+ * Modified to handle large datasets by deleting in small batches
  */
 export const clearAllData = async () => {
     try {
-        const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
-        const batch = writeBatch(db);
+        const BATCH_SIZE = 50; // Small batch size to avoid transaction size limit
+        let deletedCount = 0;
+        let hasMore = true;
 
-        querySnapshot.forEach((document) => {
-            batch.delete(document.ref);
-        });
+        while (hasMore) {
+            // Get a small batch of documents (limit query to avoid fetching too much)
+            const querySnapshot = await getDocs(
+                query(
+                    collection(db, COLLECTION_NAME),
+                    orderBy('lastUpdated', 'desc'),
+                    limit(BATCH_SIZE)
+                )
+            );
 
-        await batch.commit();
+            if (querySnapshot.empty) {
+                hasMore = false;
+                break;
+            }
+
+            // Delete this batch
+            const batch = writeBatch(db);
+
+            querySnapshot.forEach((document) => {
+                batch.delete(document.ref);
+            });
+
+            await batch.commit();
+            deletedCount += querySnapshot.size;
+            console.log(`🗑️ Deleted ${deletedCount} documents so far...`);
+
+            // Add delay to prevent quota exhaustion
+            await delay(1000); // 1 second delay between delete batches
+
+            // Check if we need to continue
+            if (querySnapshot.size < BATCH_SIZE) {
+                hasMore = false;
+            }
+        }
+
+        console.log(`✅ Total deleted: ${deletedCount} documents`);
 
         return {
             success: true,
-            deletedCount: querySnapshot.size
+            deletedCount: deletedCount
         };
     } catch (error) {
         console.error('Error clearing data:', error);

@@ -154,12 +154,9 @@ export const segmentCustomers = (customers) => {
         else if (frequency === 2 || frequency === 3) {
             segment = 'Compradores Ocasionales';
         }
-        // At Risk: Used to be good, declining activity
-        else if (r >= 2 && r <= 3 && f >= 3 && m >= 3) {
-            segment = 'At Risk';
-        }
-        // Can't Lose Them: High-value customers who haven't purchased recently
-        else if (r <= 2 && f >= 4 && m >= 4) {
+        // Críticos: High-value customers at risk or already declining
+        // Combines "At Risk" and "Can't Lose Them" into one critical category
+        else if ((r >= 2 && r <= 3 && f >= 3 && m >= 3) || (r <= 2 && f >= 4 && m >= 4)) {
             segment = "Can't Lose Them";
         }
         // Hibernating: Low activity, may be lost
@@ -280,25 +277,15 @@ export const getSegmentInfo = (segment) => {
             tooltip: 'Clientes que compran ocasionalmente (2-3 pedidos). Están en riesgo de no volver o pueden convertirse en compradores regulares.',
             priority: 7
         },
-        'At Risk': {
-            name: 'En Riesgo',
-            icon: '💤',
-            color: '#F59E0B',
-            bgColor: '#FEF3C7',
-            darkBgColor: '#78350F',
-            description: 'Clientes valiosos que están perdiendo actividad',
-            tooltip: 'Clientes que solían comprar frecuentemente pero han reducido su actividad. Necesitan atención para evitar perderlos.',
-            priority: 8
-        },
         "Can't Lose Them": {
             name: 'Críticos',
             icon: '⚠️',
             color: '#EF4444',
             bgColor: '#FEE2E2',
             darkBgColor: '#7F1D1D',
-            description: 'Alto valor pero sin compras recientes',
-            tooltip: 'Clientes de alto gasto que no han comprado recientemente. Requieren acción inmediata para recuperarlos.',
-            priority: 9
+            description: 'Clientes valiosos en riesgo o sin compras recientes',
+            tooltip: 'Clientes de alto valor que están perdiendo actividad o no han comprado recientemente. Requieren acción inmediata.',
+            priority: 8
         },
         'Hibernating': {
             name: 'Inactivos',
@@ -308,7 +295,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#374151',
             description: 'Baja actividad, pueden estar perdidos',
             tooltip: 'Clientes con baja frecuencia y que no han comprado recientemente. Difícil pero posible de recuperar.',
-            priority: 10
+            priority: 9
         },
         'Lost': {
             name: 'Perdidos',
@@ -318,7 +305,7 @@ export const getSegmentInfo = (segment) => {
             darkBgColor: '#1F2937',
             description: 'No han comprado en mucho tiempo',
             tooltip: 'Clientes que no han mostrado actividad en largo tiempo. Gastos mínimos, frecuencia mínima y recencia mínima.',
-            priority: 11
+            priority: 10
         }
     };
 

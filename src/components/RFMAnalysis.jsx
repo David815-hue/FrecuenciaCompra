@@ -7,15 +7,15 @@ import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const RFMAnalysis = ({ customers }) => {
+const RFMAnalysis = ({ customers, searchQuery = '' }) => {
     const [selectedSegments, setSelectedSegments] = useState([]);
     const [fullscreenChart, setFullscreenChart] = useState(null); // 'pie' or 'scatter'
 
     // Perform RFM Analysis
     const rfmData = useMemo(() => {
         if (!customers || customers.length === 0) return null;
-        return performRFMAnalysis(customers);
-    }, [customers]);
+        return performRFMAnalysis(customers, new Date(), searchQuery);
+    }, [customers, searchQuery]);
 
     // Filter customers by selected segments
     const filteredCustomers = useMemo(() => {

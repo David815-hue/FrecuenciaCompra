@@ -745,7 +745,7 @@ const Dashboard = ({ data, onBack }) => {
             ) : (
                 /* RFM Analysis View */
                 <div className="mb-8">
-                    <RFMAnalysis customers={displayList} />
+                    <RFMAnalysis customers={displayList} searchQuery={query} />
                 </div>
             )}
         </div>

@@ -4,9 +4,13 @@ import { differenceInDays } from 'date-fns';
  * Calculate RFM (Recency, Frequency, Monetary) values for customers
  * @param {Array} customers - Array of customer objects with orders
  * @param {Date} referenceDate - Reference date for recency calculation (usually today)
+ * @param {string} searchQuery - Optional search query to filter monetary calculation by matching items
  * @returns {Array} Customers with RFM values
  */
-export const calculateRFM = (customers, referenceDate = new Date()) => {
+export const calculateRFM = (customers, referenceDate = new Date(), searchQuery = '') => {
+    // Parse search query into terms
+    const terms = searchQuery ? searchQuery.split(/[\n,]+/).map(t => t.trim().toLowerCase()).filter(Boolean) : [];
+
     return customers.map(customer => {
         // Recency: Days since last purchase
         const orderDates = customer.orders.map(o => new Date(o.orderDate)).filter(d => !isNaN(d));
@@ -22,9 +26,31 @@ export const calculateRFM = (customers, referenceDate = new Date()) => {
         const frequency = customer.orders.length;
 
         // Monetary: Total amount spent
-        const monetary = customer.totalInvestment || customer.orders.reduce((sum, order) => {
-            return sum + (parseFloat(order.totalAmount) || 0);
-        }, 0);
+        let monetary = 0;
+
+        // If search query is active, calculate monetary only from matching items
+        if (terms.length > 0) {
+            customer.orders.forEach(order => {
+                if (order.items) {
+                    order.items.forEach(item => {
+                        // Check if this item matches any search term
+                        const matches = terms.some(term =>
+                            (item.sku && item.sku.toLowerCase().includes(term)) ||
+                            (item.description && item.description.toLowerCase().includes(term))
+                        );
+
+                        if (matches) {
+                            monetary += (item.total || 0);
+                        }
+                    });
+                }
+            });
+        } else {
+            // No search query: use total investment
+            monetary = customer.totalInvestment || customer.orders.reduce((sum, order) => {
+                return sum + (parseFloat(order.totalAmount) || 0);
+            }, 0);
+        }
 
         return {
             ...customer,
@@ -361,11 +387,12 @@ export const getSegmentStats = (customers) => {
  * Process complete RFM analysis
  * @param {Array} customers - Customer array
  * @param {Date} referenceDate - Reference date
+ * @param {string} searchQuery - Optional search query to filter monetary calculation
  * @returns {Object} Complete RFM analysis
  */
-export const performRFMAnalysis = (customers, referenceDate = new Date()) => {
+export const performRFMAnalysis = (customers, referenceDate = new Date(), searchQuery = '') => {
     // Step 1: Calculate RFM values
-    let analyzedCustomers = calculateRFM(customers, referenceDate);
+    let analyzedCustomers = calculateRFM(customers, referenceDate, searchQuery);
 
     // Step 2: Score RFM
     analyzedCustomers = scoreRFM(analyzedCustomers);

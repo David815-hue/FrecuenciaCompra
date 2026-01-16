@@ -216,8 +216,8 @@ export const getSegmentInfo = (segment) => {
             color: '#FFD700',
             bgColor: '#FFF9E6',
             darkBgColor: '#4A3F00',
-            description: 'Mejores clientes: compran con frecuencia, recientemente y gastan más',
-            tooltip: 'Clientes de máximo valor que compran frecuentemente, han comprado recientemente y tienen el gasto más alto. Son tus embajadores de marca.',
+            description: 'Compran muy seguido (4+ pedidos), última compra ≤30 días, gasto alto',
+            tooltip: 'Mejores clientes. Son embajadores de tu marca que compran frecuentemente y recientemente.',
             priority: 1
         },
         'Loyal Customers': {
@@ -226,8 +226,8 @@ export const getSegmentInfo = (segment) => {
             color: '#4F46E5',
             bgColor: '#EEF2FF',
             darkBgColor: '#1E1B4B',
-            description: 'Compradores regulares con buen gasto promedio',
-            tooltip: 'Clientes confiables que compran regularmente y mantienen un gasto consistente. Base sólida de tu negocio.',
+            description: 'Compran regularmente (4+ pedidos), última compra ≤60 días, gasto consistente',
+            tooltip: 'Base sólida del negocio. Clientes confiables que mantienen actividad regular.',
             priority: 2
         },
         'Potential Loyalists': {
@@ -236,8 +236,8 @@ export const getSegmentInfo = (segment) => {
             color: '#10B981',
             bgColor: '#ECFDF5',
             darkBgColor: '#064E3B',
-            description: 'Clientes recientes con potencial de volverse leales',
-            tooltip: 'Clientes que han comprado recientemente pero con frecuencia moderada. Gran oportunidad de convertirlos en clientes leales.',
+            description: '2-3 compras, última ≤45 días. Gran oportunidad de fidelización',
+            tooltip: 'Clientes prometedores en camino a ser leales. Requieren incentivos para aumentar frecuencia.',
             priority: 3
         },
         'New Customers': {
@@ -246,8 +246,8 @@ export const getSegmentInfo = (segment) => {
             color: '#06B6D4',
             bgColor: '#ECFEFF',
             darkBgColor: '#164E63',
-            description: 'Acaban de realizar su primera compra',
-            tooltip: 'Clientes que realizaron su primera compra recientemente. Es crucial crear una buena primera impresión.',
+            description: 'Primera compra reciente (clasificación automática por score)',
+            tooltip: 'Clientes que hicieron su primera compra muy recientemente y obtuvieron score alto de recencia. Primera impresión es crucial.',
             priority: 4
         },
         'Nuevos Compradores Recientes': {
@@ -256,8 +256,8 @@ export const getSegmentInfo = (segment) => {
             color: '#84CC16',
             bgColor: '#F7FEE7',
             darkBgColor: '#365314',
-            description: 'Una compra en los últimos 60 días',
-            tooltip: 'Clientes con una sola compra reciente (≤60 días). Alta oportunidad de convertirlos en compradores recurrentes.',
+            description: '1 compra ≤60 días. Alta oportunidad para segunda compra',
+            tooltip: 'Compraron recientemente pero solo una vez. Necesitan incentivo para regresar.',
             priority: 5
         },
         'Nuevos Compradores Inactivos': {
@@ -266,8 +266,8 @@ export const getSegmentInfo = (segment) => {
             color: '#1F2937',
             bgColor: '#F9FAFB',
             darkBgColor: '#111827',
-            description: 'Una compra hace más de 60 días',
-            tooltip: 'Clientes con una sola compra antigua (>60 días). Requieren reactivación para no perderlos definitivamente.',
+            description: '1 compra hace >60 días. Requieren reactivación urgente',
+            tooltip: 'Probablemente perdidos. Necesitan campaña agresiva o descartarlos.',
             priority: 6
         },
         'Compradores Ocasionales': {
@@ -276,8 +276,8 @@ export const getSegmentInfo = (segment) => {
             color: '#A855F7',
             bgColor: '#FAF5FF',
             darkBgColor: '#581C87',
-            description: 'Han comprado 2 o 3 veces',
-            tooltip: 'Clientes que compran ocasionalmente (2-3 pedidos). Están en riesgo de no volver o pueden convertirse en compradores regulares.',
+            description: '2-3 compras totales. Pueden ser regulares o abandonar',
+            tooltip: 'Compran ocasionalmente. Necesitan incentivos para aumentar frecuencia de compra.',
             priority: 7
         },
         "Can't Lose Them": {
@@ -286,8 +286,8 @@ export const getSegmentInfo = (segment) => {
             color: '#EF4444',
             bgColor: '#FEE2E2',
             darkBgColor: '#7F1D1D',
-            description: 'Clientes valiosos en riesgo o sin compras recientes',
-            tooltip: 'Clientes de alto valor que están perdiendo actividad o no han comprado recientemente. Requieren acción inmediata.',
+            description: 'Buenos clientes (4+ compras) pero >60 días inactivos. ¡CONTACTAR YA!',
+            tooltip: 'URGENTE: Alto riesgo de pérdida definitiva. Requieren acción inmediata.',
             priority: 8
         },
         'Hibernating': {
@@ -296,8 +296,8 @@ export const getSegmentInfo = (segment) => {
             color: '#6B7280',
             bgColor: '#F3F4F6',
             darkBgColor: '#374151',
-            description: 'Baja actividad, pueden estar perdidos',
-            tooltip: 'Clientes con baja frecuencia y que no han comprado recientemente. Difícil pero posible de recuperar.',
+            description: 'Baja frecuencia y mucho tiempo sin comprar',
+            tooltip: 'Clientes con pocas compras y mucho tiempo inactivos. Difícil pero posible recuperar con ofertas especiales.',
             priority: 9
         },
         'Lost': {
@@ -306,8 +306,8 @@ export const getSegmentInfo = (segment) => {
             color: '#374151',
             bgColor: '#E5E7EB',
             darkBgColor: '#1F2937',
-            description: 'No han comprado en mucho tiempo',
-            tooltip: 'Clientes que no han mostrado actividad en largo tiempo. Gastos mínimos, frecuencia mínima y recencia mínima.',
+            description: 'Sin actividad significativa. Gastos, frecuencia y recencia mínimos',
+            tooltip: 'Clientes perdidos definitivamente. Scores mínimos en todo (1-1-1). No vale la pena invertir recursos en reactivarlos.',
             priority: 10
         }
     };

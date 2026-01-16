@@ -126,16 +126,16 @@ export const segmentCustomers = (customers) => {
         const { recencyScore: r, frequencyScore: f, monetaryScore: m, frequency } = customer.rfm;
         let segment = '';
 
-        // Champions: Best customers
-        if (r >= 4 && f >= 4 && m >= 4) {
+        // Champions: Best customers - Must be recent (≤30 days)
+        if (r >= 4 && f >= 4 && m >= 4 && customer.rfm.recency <= 30) {
             segment = 'Champions';
         }
-        // Loyal Customers: Regular buyers with good spending
-        else if (r >= 3 && f >= 4 && m >= 3) {
+        // Loyal Customers: Regular buyers with good spending - Must be recent (≤60 days)
+        else if (r >= 3 && f >= 4 && m >= 3 && customer.rfm.recency <= 60) {
             segment = 'Loyal Customers';
         }
-        // Potential Loyalists: Recent customers with potential
-        else if (r >= 4 && f >= 2 && f <= 3 && m >= 2 && m <= 3) {
+        // Potential Loyalists: Recent customers with potential - Must be very recent (≤45 days)
+        else if (r >= 4 && f >= 2 && f <= 3 && m >= 2 && m <= 3 && customer.rfm.recency <= 45) {
             segment = 'Potential Loyalists';
         }
         // New Customers (by score): Recently purchased, only 1 time
@@ -155,8 +155,11 @@ export const segmentCustomers = (customers) => {
             segment = 'Compradores Ocasionales';
         }
         // Críticos: High-value customers at risk or already declining
-        // Combines "At Risk" and "Can't Lose Them" into one critical category
-        else if ((r >= 2 && r <= 3 && f >= 3 && m >= 3) || (r <= 2 && f >= 4 && m >= 4)) {
+        // Includes: valuable customers losing activity, high-value without recent purchases, 
+        // AND high-frequency customers who haven't purchased recently (>60 days)
+        else if ((r >= 2 && r <= 3 && f >= 3 && m >= 3) ||
+            (r <= 2 && f >= 4 && m >= 4) ||
+            (frequency >= 4 && customer.rfm.recency > 60)) {
             segment = "Can't Lose Them";
         }
         // Hibernating: Low activity, may be lost

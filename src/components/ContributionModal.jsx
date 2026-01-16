@@ -178,7 +178,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                                         <span className="text-xs font-bold uppercase tracking-wider">Total Invertido</span>
                                     </div>
                                     <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-300">
-                                        L. {stats.totalAmount.toLocaleString()}
+                                        L. {stats.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </div>
                                 </div>
 
@@ -189,7 +189,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                                         <span className="text-xs font-bold uppercase tracking-wider">Promedio</span>
                                     </div>
                                     <div className="text-2xl font-bold text-violet-900 dark:text-violet-300">
-                                        L. {stats.avgOrderValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        L. {stats.avgOrderValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </div>
                                 </div>
 
@@ -218,7 +218,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                                                 <span className="font-bold text-slate-900 dark:text-white">{stats.totalOrders}</span> compra{stats.totalOrders !== 1 ? 's' : ''}
                                             </span>
                                             <span className="text-slate-600 dark:text-slate-400">
-                                                <span className="font-bold text-emerald-600 dark:text-emerald-400">L. {stats.totalAmount.toLocaleString()}</span>
+                                                <span className="font-bold text-emerald-600 dark:text-emerald-400">L. {stats.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                             </span>
                                         </div>
                                     </div>

@@ -565,7 +565,7 @@ const Dashboard = ({ data, onBack }) => {
 
                                             <td className="px-6 py-6 align-top text-right">
                                                 <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight">
-                                                    L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                    L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </div>
                                                 <div className="text-xs text-slate-400 dark:text-slate-500 font-medium">Total acumulado</div>
                                             </td>

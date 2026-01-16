@@ -293,7 +293,7 @@ const ContributionGraph = ({ orders }) => {
                             <div className="flex items-center gap-1 text-emerald-400">
                                 <DollarSign size={14} />
                                 <span className="font-bold text-sm">
-                                    L. {tooltip.contribution.amount.toLocaleString()}
+                                    L. {tooltip.contribution.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             </div>
                         </div>
@@ -330,7 +330,7 @@ const ContributionGraph = ({ orders }) => {
                                                 Pedido {idx + 1}
                                             </span>
                                             <span className="ml-auto text-emerald-400 font-bold">
-                                                L. {(parseFloat(order.totalAmount) || 0).toLocaleString()}
+                                                L. {(parseFloat(order.totalAmount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
 
@@ -342,7 +342,7 @@ const ContributionGraph = ({ orders }) => {
                                                         {item.quantity}x {item.description}
                                                     </span>
                                                     <span className="text-slate-400 ml-2 font-mono">
-                                                        L. {item.total.toLocaleString()}
+                                                        L. {item.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
                                                 </div>
                                             ))}

@@ -148,7 +148,7 @@ const ProductDetailsModal = ({ isOpen, onClose, customerName, monthLabel, orderC
                                                         </span>
                                                         {product.total > 0 && (
                                                             <span className="font-bold text-slate-900 dark:text-white text-sm">
-                                                                L. {product.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                                L. {product.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </span>
                                                         )}
                                                     </div>
@@ -178,7 +178,7 @@ const ProductDetailsModal = ({ isOpen, onClose, customerName, monthLabel, orderC
                                         <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Total del mes</p>
                                         <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                                             <span className="text-lg text-slate-400 dark:text-slate-600 font-medium mr-1">L.</span>
-                                            {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </p>
                                     </div>
                                 </div>

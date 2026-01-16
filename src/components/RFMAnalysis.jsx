@@ -128,7 +128,7 @@ const RFMAnalysis = ({ customers }) => {
                     <p><span className="text-slate-400">📅 Última compra:</span> <span className="font-bold text-white">{format(data.lastPurchaseDate, 'dd/MM/yyyy', { locale: es })}</span></p>
                     <p><span className="text-slate-400">Recencia:</span> <span className="font-bold text-white">{data.x} días</span></p>
                     <p><span className="text-slate-400">Frecuencia:</span> <span className="font-bold text-white">{data.y} pedidos</span></p>
-                    <p><span className="text-slate-400">Monetario:</span> <span className="font-bold text-white">L. {data.z.toLocaleString()}</span></p>
+                    <p><span className="text-slate-400">Monetario:</span> <span className="font-bold text-white">L. {data.z.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></p>
                     <p className="pt-1 border-t border-slate-600"><span className="text-slate-400">Segmento:</span> <span className="font-bold" style={{ color: data.info.color }}>{data.info.name}</span></p>
                 </div>
             </div>
@@ -188,7 +188,7 @@ const RFMAnalysis = ({ customers }) => {
                     <div className="flex items-center justify-between mb-2">
                         <DollarSign size={24} className="opacity-80" />
                         <span className="text-3xl font-bold">
-                            {Object.values(rfmData.stats).reduce((sum, s) => sum + s.totalRevenue, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            {Object.values(rfmData.stats).reduce((sum, s) => sum + s.totalRevenue, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                     </div>
                     <p className="text-sm font-medium opacity-90">Ingresos Total (L.)</p>
@@ -393,7 +393,7 @@ const RFMAnalysis = ({ customers }) => {
                                         <div className="flex items-center justify-between text-sm">
                                             <span className="text-slate-600 dark:text-slate-700">Ingresos:</span>
                                             <span className="font-bold" style={{ color: data.info.color }}>
-                                                L. {data.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                L. {data.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>

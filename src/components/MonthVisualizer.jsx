@@ -30,7 +30,7 @@ const ProductSummary = ({ items }) => {
                         <span className="text-slate-500 font-mono text-[9px]">{p.sku}</span>
                     </div>
                     <div className="flex flex-col items-end shrink-0">
-                        <span className="text-indigo-300 font-bold whitespace-nowrap">L. {(p.totalAmount).toLocaleString()}</span>
+                        <span className="text-indigo-300 font-bold whitespace-nowrap">L. {(p.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         <span className="text-slate-400 font-medium">{p.totalQuantity} un.</span>
                     </div>
                 </div>

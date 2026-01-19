@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { format, startOfWeek, eachDayOfInterval, startOfYear, endOfYear, getYear } from 'date-fns';
+import { format, startOfWeek, eachDayOfInterval, startOfYear, endOfMonth, getYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ShoppingBag, DollarSign } from 'lucide-react';
 
@@ -67,7 +67,7 @@ const ContributionGraph = ({ orders }) => {
         }
 
         const startDate = startOfYear(dateRange.minDate);
-        const endDate = endOfYear(dateRange.maxDate);
+        const endDate = endOfMonth(dateRange.maxDate);
         const gridStart = startOfWeek(startDate, { weekStartsOn: 0 });
 
         const days = eachDayOfInterval({
@@ -228,7 +228,7 @@ const ContributionGraph = ({ orders }) => {
                         return (
                             <div key={weekIndex} className="relative">
                                 {isYearBoundary && (
-                                    <div className="absolute -left-1 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-400 dark:from-indigo-500 dark:via-indigo-400 dark:to-indigo-500 opacity-50" />
+                                    <div className="absolute -left-1.5 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 via-violet-600 to-indigo-500 dark:from-indigo-400 dark:via-violet-500 dark:to-indigo-400 opacity-80 shadow-lg" />
                                 )}
 
                                 <div className="flex flex-col gap-[3px]">

@@ -27,6 +27,25 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
         });
     }, [orders, searchQuery]);
 
+    // Get product name from filtered orders for display
+    const productName = useMemo(() => {
+        if (!searchQuery || skuFilteredOrders.length === 0) return searchQuery;
+
+        // Find the first matching product description
+        for (const order of skuFilteredOrders) {
+            const matchingItem = order.items?.find(item => {
+                const sku = (item.sku || '').toLowerCase();
+                const description = (item.description || '').toLowerCase();
+                const query = searchQuery.toLowerCase().trim();
+                return sku.includes(query) || description.includes(query);
+            });
+            if (matchingItem?.description) {
+                return matchingItem.description;
+            }
+        }
+        return searchQuery;
+    }, [searchQuery, skuFilteredOrders]);
+
     // Get the orders to display based on active tab
     const displayOrders = activeTab === 'all' ? orders : skuFilteredOrders;
 
@@ -141,7 +160,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                                         `}
                                     >
                                         <Package size={16} />
-                                        <span>Solo "{searchQuery}"</span>
+                                        <span>Solo "{productName}"</span>
                                         <span className={`
                                             text-xs px-2 py-0.5 rounded-full font-bold
                                             ${activeTab === 'sku'

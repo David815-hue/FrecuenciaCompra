@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { X, TrendingUp, ShoppingBag, DollarSign, Calendar, Package, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ContributionGraph from './ContributionGraph';
@@ -45,6 +45,18 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
         }
         return searchQuery;
     }, [searchQuery, skuFilteredOrders]);
+
+    // Set initial tab based on search query when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            // If there's an active search with results, show the filtered tab
+            if (searchQuery && searchQuery.trim().length >= 3 && skuFilteredOrders.length > 0) {
+                setActiveTab('sku');
+            } else {
+                setActiveTab('all');
+            }
+        }
+    }, [isOpen, searchQuery, skuFilteredOrders.length]);
 
     // Get the orders to display based on active tab
     const displayOrders = activeTab === 'all' ? orders : skuFilteredOrders;

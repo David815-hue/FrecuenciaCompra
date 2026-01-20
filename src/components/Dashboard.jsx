@@ -28,6 +28,21 @@ const Dashboard = ({ data, onBack }) => {
     // Sort state
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
+    // Search helper tooltip state
+    const [showSearchTooltip, setShowSearchTooltip] = useState(false);
+
+    // Auto-show search tooltip on mount
+    useEffect(() => {
+        setShowSearchTooltip(true);
+
+        // Auto-hide after 7 seconds
+        const timer = setTimeout(() => {
+            setShowSearchTooltip(false);
+        }, 7000);
+
+        return () => clearTimeout(timer);
+    }, []);
+
     // Helper to handle sort clicks
     const handleSort = (key) => {
         let direction = 'asc';
@@ -253,7 +268,7 @@ const Dashboard = ({ data, onBack }) => {
     return (
         <div className="max-w-[1920px] mx-auto space-y-8">
             {/* Header Area */}
-            <header className="flex flex-col gap-8">
+            <header className="flex flex-col gap-8 relative z-50">
                 {/* Top Navigation Bar */}
                 <div className="flex justify-between items-center bg-white/30 dark:bg-slate-900/30 backdrop-blur-2xl px-8 py-4 rounded-3xl border border-white/40 dark:border-slate-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] transition-all duration-300">
                     <button
@@ -310,10 +325,17 @@ const Dashboard = ({ data, onBack }) => {
                     </div>
 
                     {/* Controls Bar */}
-                    <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-2 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/30 dark:border-slate-700/50 transition-all duration-300">
+                    <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-2 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/30 dark:border-slate-700/50 transition-all duration-300 overflow-visible">
                         {/* Search Input */}
                         <div className="relative w-full md:w-96 group">
-                            <div className="absolute top-1/2 -translate-y-1/2 left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors">
+                            <div
+                                className="absolute top-1/2 -translate-y-1/2 left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors cursor-pointer"
+                                onClick={() => {
+                                    setShowSearchTooltip(true);
+                                    setTimeout(() => setShowSearchTooltip(false), 4000);
+                                }}
+                                title="Ayuda de búsqueda"
+                            >
                                 <Search size={20} />
                             </div>
                             <input
@@ -323,6 +345,61 @@ const Dashboard = ({ data, onBack }) => {
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                             />
+
+                            {/* Animated Search Helper Tooltip */}
+                            <AnimatePresence>
+                                {showSearchTooltip && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                                        transition={{ duration: 0.2, ease: "easeOut" }}
+                                        className="absolute top-full left-0 right-0 mt-2 z-[9999]"
+                                    >
+                                        <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/90 dark:to-violet-950/90 backdrop-blur-xl border-2 border-indigo-200/60 dark:border-indigo-500/30 rounded-2xl p-4 shadow-2xl shadow-indigo-500/20 dark:shadow-indigo-900/40">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                                                    <span className="text-base">💡</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-200 mb-2">Puedes buscar por:</h4>
+                                                    <div className="space-y-1.5 text-xs text-indigo-700 dark:text-indigo-300">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
+                                                            <span><strong className="font-semibold">Nombre</strong> del cliente</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
+                                                            <span><strong className="font-semibold">Identidad</strong> (DNI)</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
+                                                            <span><strong className="font-semibold">Email</strong> o <strong className="font-semibold">Teléfono</strong></span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
+                                                            <span><strong className="font-semibold">SKU</strong> individual</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-violet-400 dark:bg-violet-500"></div>
+                                                            <span><strong className="font-semibold">Lista de SKUs</strong> separados por <code className="px-1 py-0.5 bg-white/60 dark:bg-slate-900/60 rounded text-[10px] font-mono text-violet-600 dark:text-violet-400">,</code></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setShowSearchTooltip(false)}
+                                                    className="w-6 h-6 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-500/20 flex items-center justify-center text-indigo-400 dark:text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors shrink-0"
+                                                    title="Cerrar"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                            {/* Arrow pointing up */}
+                                            <div className="absolute -top-2 left-8 w-4 h-4 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/90 dark:to-violet-950/90 border-t-2 border-l-2 border-indigo-200/60 dark:border-indigo-500/30 rotate-45"></div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         {/* Recurring Toggle */}

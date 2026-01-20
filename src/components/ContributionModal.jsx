@@ -123,6 +123,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                     'Número de Pedido': order.orderId || order.rawId || '',
                     'Año': year,
                     'Mes': month,
+                    'SKU': '',
                     'Descripción': 'Sin productos',
                     'Total': parseFloat(order.totalAmount || 0).toFixed(2)
                 });
@@ -135,6 +136,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                         'Número de Pedido': order.orderId || order.rawId || '',
                         'Año': year,
                         'Mes': month,
+                        'SKU': item.sku || '',
                         'Descripción': item.description || item.sku || '',
                         'Total': parseFloat(item.total || item.lineTotal || 0).toFixed(2)
                     });

@@ -115,19 +115,8 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
             // Filter out delivery service items
             const filteredItems = items.filter(item => item.sku !== '20000025');
 
-            if (filteredItems.length === 0) {
-                // If no items after filtering, create a row with order totals
-                rows.push({
-                    'Nombre': customerName,
-                    'Teléfono': phone,
-                    'Número de Pedido': order.orderId || order.rawId || '',
-                    'Año': year,
-                    'Mes': month,
-                    'SKU': '',
-                    'Descripción': 'Sin productos',
-                    'Total': parseFloat(order.totalAmount || 0).toFixed(2)
-                });
-            } else {
+            // Only process if there are items after filtering (skip delivery-only orders)
+            if (filteredItems.length > 0) {
                 // Create a row for each item
                 filteredItems.forEach(item => {
                     rows.push({

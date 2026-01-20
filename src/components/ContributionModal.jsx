@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { X, TrendingUp, ShoppingBag, DollarSign, Calendar, Package, Layers } from 'lucide-react';
+import { X, TrendingUp, ShoppingBag, DollarSign, Calendar, Package, Layers, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ContributionGraph from './ContributionGraph';
-import { format } from 'date-fns';
+import { format, getMonth, getYear } from 'date-fns';
 import { es } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
 
 const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery = '' }) => {
     // Tab state: 'all' or 'sku'
@@ -94,6 +95,65 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
         };
     }, [displayOrders]);
 
+    // Export to Excel function
+    const exportToExcel = () => {
+        const rows = [];
+        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        displayOrders.forEach(order => {
+            const orderDate = new Date(order.orderDate);
+            const year = getYear(orderDate);
+            const month = monthNames[getMonth(orderDate)];
+
+            // Get phone from order data
+            const phone = order.phone || order.celular || '';
+
+            // Process each item in the order
+            const items = order.items || [];
+
+            // Filter out delivery service items
+            const filteredItems = items.filter(item => item.sku !== '20000025');
+
+            if (filteredItems.length === 0) {
+                // If no items after filtering, create a row with order totals
+                rows.push({
+                    'Nombre': customerName,
+                    'Teléfono': phone,
+                    'Número de Pedido': order.orderId || order.rawId || '',
+                    'Año': year,
+                    'Mes': month,
+                    'Descripción': 'Sin productos',
+                    'Total': parseFloat(order.totalAmount || 0).toFixed(2)
+                });
+            } else {
+                // Create a row for each item
+                filteredItems.forEach(item => {
+                    rows.push({
+                        'Nombre': customerName,
+                        'Teléfono': phone,
+                        'Número de Pedido': order.orderId || order.rawId || '',
+                        'Año': year,
+                        'Mes': month,
+                        'Descripción': item.description || item.sku || '',
+                        'Total': parseFloat(item.total || item.lineTotal || 0).toFixed(2)
+                    });
+                });
+            }
+        });
+
+        // Create worksheet and workbook
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial de Compras');
+
+        // Generate filename with customer name and current date
+        const fileName = `Historial_${customerName.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+
+        // Download file
+        XLSX.writeFile(workbook, fileName);
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -126,12 +186,22 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                                     {customerName}
                                 </p>
                             </div>
-                            <button
-                                onClick={onClose}
-                                className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-all shadow-sm"
-                            >
-                                <X size={20} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={exportToExcel}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white font-semibold transition-all shadow-md hover:shadow-lg"
+                                    title="Descargar Excel"
+                                >
+                                    <Download size={18} />
+                                    <span className="hidden sm:inline">Descargar Excel</span>
+                                </button>
+                                <button
+                                    onClick={onClose}
+                                    className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-all shadow-sm"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Tabs */}

@@ -130,12 +130,14 @@ export const filterData = (data, query) => {
     if (terms.length === 0) return data;
 
     return data.filter((item) => {
-        // Search in Email, Phone (Exact or partial?)
+        // Search in Name, Email, Phone, Identity (DNI)
         // The prompt implies "pegar lista de SKUs", so priority is SKU search.
         // But we should retain basic search capabilities.
 
+        const name = item.customerName || item.name ? String(item.customerName || item.name).toLowerCase() : '';
         const email = item.email ? String(item.email).toLowerCase() : '';
         const phone = item.phone ? String(item.phone).toLowerCase() : '';
+        const identity = item.identity ? String(item.identity).toLowerCase() : '';
 
         // SKU check: does this order contain ANY of the terms?
         const hasSku = item.items && item.items.some(prod =>
@@ -147,7 +149,7 @@ export const filterData = (data, query) => {
 
         // Also check basic fields if terms is size 1 (standard search)
         if (terms.length === 1) {
-            return hasSku || email.includes(terms[0]) || phone.includes(terms[0]);
+            return hasSku || name.includes(terms[0]) || email.includes(terms[0]) || phone.includes(terms[0]) || identity.includes(terms[0]);
         }
 
         return hasSku;

@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { format, startOfWeek, eachDayOfInterval, startOfYear, endOfMonth, getYear } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ShoppingBag, DollarSign } from 'lucide-react';
+import { ShoppingBag, DollarSign, X } from 'lucide-react';
 
 const ContributionGraph = ({ orders }) => {
     const [tooltip, setTooltip] = useState(null);
+    const [isPinned, setIsPinned] = useState(false);
 
     // Calculate contributions per day and date range
     const { contributions, dateRange } = useMemo(() => {
@@ -146,7 +147,7 @@ const ContributionGraph = ({ orders }) => {
     };
 
     const handleMouseEnter = (e, day, contribution) => {
-        if (!contribution || contribution.count === 0) return;
+        if (!contribution || contribution.count === 0 || isPinned) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
         setTooltip({
@@ -158,7 +159,30 @@ const ContributionGraph = ({ orders }) => {
     };
 
     const handleMouseLeave = () => {
+        if (!isPinned) {
+            setTooltip(null);
+        }
+    };
+
+    const handleClick = (e, day, contribution) => {
+        if (!contribution || contribution.count === 0) return;
+
+        e.stopPropagation(); // Prevent event bubbling
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        setTooltip({
+            x: rect.left + rect.width / 2,
+            y: rect.top - 10,
+            date: day,
+            contribution: contribution
+        });
+        setIsPinned(true);
+    };
+
+    const handleCloseTooltip = (e) => {
+        e?.stopPropagation();
         setTooltip(null);
+        setIsPinned(false);
     };
 
     const monthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -252,6 +276,7 @@ const ContributionGraph = ({ orders }) => {
                                                 `}
                                                 onMouseEnter={(e) => handleMouseEnter(e, day, contribution)}
                                                 onMouseLeave={handleMouseLeave}
+                                                onClick={(e) => handleClick(e, day, contribution)}
                                             />
                                         );
                                     })}
@@ -277,7 +302,7 @@ const ContributionGraph = ({ orders }) => {
             {/* Custom Tooltip */}
             {tooltip && (
                 <div
-                    className="fixed z-[9999] pointer-events-none"
+                    className={`fixed z-[9999] ${isPinned ? 'pointer-events-auto' : 'pointer-events-none'}`}
                     style={{
                         left: `${tooltip.x}px`,
                         top: `${tooltip.y}px`,
@@ -290,11 +315,22 @@ const ContributionGraph = ({ orders }) => {
                             <span className="font-bold text-sm">
                                 {format(tooltip.date, "dd 'de' MMMM, yyyy", { locale: es })}
                             </span>
-                            <div className="flex items-center gap-1 text-emerald-400">
-                                <DollarSign size={14} />
-                                <span className="font-bold text-sm">
-                                    L. {tooltip.contribution.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </span>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 text-emerald-400">
+                                    <DollarSign size={14} />
+                                    <span className="font-bold text-sm">
+                                        L. {tooltip.contribution.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                                {isPinned && (
+                                    <button
+                                        onClick={handleCloseTooltip}
+                                        className="w-5 h-5 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 hover:text-white transition-all"
+                                        title="Cerrar"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -316,7 +352,7 @@ const ContributionGraph = ({ orders }) => {
                                         };
                                     }
                                     itemsMap[key].quantity += item.quantity || 0;
-                                    itemsMap[key].total += item.lineTotal || 0;
+                                    itemsMap[key].total += item.total || 0;
                                 });
 
                                 const items = Object.values(itemsMap);

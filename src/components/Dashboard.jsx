@@ -765,18 +765,21 @@ const Dashboard = ({ data, onBack }) => {
                                                                     {customer.email}
                                                                 </div>
                                                             )}
-                                                            {customer.phone && (
-                                                                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
-                                                                    <Phone size={12} />
-                                                                    {customer.phone}
-                                                                </div>
-                                                            )}
-                                                            {customer.city && (
-                                                                <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                                                                    <MapPin size={12} />
-                                                                    {customer.city}
-                                                                </div>
-                                                            )}
+                                                            <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1">
+                                                                {customer.phone && (
+                                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                                                                        <Phone size={12} />
+                                                                        {customer.phone}
+                                                                    </div>
+                                                                )}
+
+                                                                {customer.city && (
+                                                                    <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                                                                        <MapPin size={12} />
+                                                                        {customer.city}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>

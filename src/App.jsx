@@ -3,8 +3,8 @@ import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import ThemeToggle from './components/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
-import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets } from './utils/dataProcessing';
-import { saveCustomersToFirestore, loadCustomersFromFirestore, clearAllData } from './utils/supabaseUtils';
+import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets, filterDataByDate } from './utils/dataProcessing';
+import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, getLatestOrderDate } from './utils/firestoreUtils';
 import { Cloud, CloudOff, RefreshCw, Trash2, Activity } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -97,19 +97,10 @@ function App() {
     }
   };
 
-  const handleFilesUploaded = async (albatrossFile, rmsFile) => {
+  const handleFilesUploaded = async (albatrossFile, rmsFile, isIncremental = false) => {
     setIsProcessing(true);
     try {
-      console.log('Starting file processing...');
-
-      // 1. Clear existing Firestore data first
-      console.log('🗑️ Clearing existing Firestore data...');
-      const clearResult = await clearAllData();
-      if (clearResult.success) {
-        console.log(`✅ Cleared ${clearResult.deletedCount} existing records from Firestore`);
-      } else {
-        console.warn('⚠️ Could not clear existing data:', clearResult.error);
-      }
+      console.log(`Starting file processing in ${isIncremental ? 'INCREMENTAL' : 'FULL'} mode...`);
 
       // 2. Parse Files
       const rawAlbatross = await parseExcel(albatrossFile);
@@ -117,7 +108,7 @@ function App() {
       console.log('Files parsed successfully');
 
       // 3. Clean Albatross
-      const cleanedAlbatross = cleanAlbatrossData(rawAlbatross);
+      let cleanedAlbatross = cleanAlbatrossData(rawAlbatross);
       console.log('Albatross data cleaned');
 
       // 4. Process RMS (Group by Order ID)
@@ -125,21 +116,57 @@ function App() {
       console.log('RMS data processed');
 
       // 5. Join Data
-      const finalData = joinDatasets(cleanedAlbatross, processedRMS);
+      let finalData = joinDatasets(cleanedAlbatross, processedRMS);
       console.log('Data joined successfully. Total records:', finalData.length);
 
-      // Set data immediately (don't wait for cloud save)
-      setData(finalData);
+      if (isIncremental) {
+        // INCREMENTAL MODE: Filter by date and merge
+        console.log('🔄 Running in INCREMENTAL mode...');
 
-      // 6. Save to Firestore in background (non-blocking)
-      saveToCloud(finalData).catch(error => {
-        console.warn('Cloud save failed (non-critical):', error);
-        // Don't block UI - just update sync status
-        setSyncStatus(prev => ({
-          ...prev,
-          error: 'No se pudo guardar en la nube: ' + error.message
-        }));
-      });
+        const latestDate = await getLatestOrderDate();
+        if (latestDate) {
+          console.log(`Latest date in Firestore: ${latestDate.toLocaleDateString('es-HN')}`);
+          finalData = filterDataByDate(finalData, latestDate);
+          console.log(`Filtered to ${finalData.length} new orders`);
+        } else {
+          console.warn('No existing data found, treating as full upload');
+        }
+
+        // Save incrementally (merge with existing)
+        const saveResult = await saveCustomersToFirestoreIncremental(finalData);
+        if (saveResult.success) {
+          setSyncStatus({
+            lastSync: saveResult.timestamp,
+            isLoading: false,
+            error: null
+          });
+          console.log(`Saved ${saveResult.count} customers incrementally`);
+        }
+
+        // Reload all data to show combined result
+        await loadFromCloud();
+      } else {
+        // FULL MODE: Clear and replace
+        console.log('🗑️ Running in FULL mode - Clearing existing data...');
+        const clearResult = await clearAllData();
+        if (clearResult.success) {
+          console.log(`✅ Cleared ${clearResult.deletedCount} existing records`);
+        } else {
+          console.warn('⚠️ Could not clear existing data:', clearResult.error);
+        }
+
+        // Set data immediately (don't wait for cloud save)
+        setData(finalData);
+
+        // Save to Firestore in background (non-blocking)
+        saveToCloud(finalData).catch(error => {
+          console.warn('Cloud save failed (non-critical):', error);
+          setSyncStatus(prev => ({
+            ...prev,
+            error: 'No se pudo guardar en la nube: ' + error.message
+          }));
+        });
+      }
 
     } catch (error) {
       console.error("Error processing files:", error);

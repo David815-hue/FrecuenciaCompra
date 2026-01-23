@@ -156,6 +156,25 @@ export const filterData = (data, query) => {
     });
 };
 
+// Filter data by date (for incremental uploads)
+// Returns only orders with orderDate AFTER the specified cutoff date
+export const filterDataByDate = (data, cutoffDate) => {
+    if (!cutoffDate) return data;
+
+    const cutoffTime = new Date(cutoffDate).getTime();
+
+    const filtered = data.filter(order => {
+        const orderDate = new Date(order.orderDate);
+        if (isNaN(orderDate)) return false;
+
+        return orderDate.getTime() > cutoffTime;
+    });
+
+    console.log(`📊 Filtered data: ${data.length} total → ${filtered.length} after ${cutoffDate.toLocaleDateString('es-HN')}`);
+
+    return filtered;
+};
+
 // Export to Excel with Monthly SKU Breakdown
 export const exportToExcel = (customers, activeQuery) => {
     // Parse active query to get filtered SKUs

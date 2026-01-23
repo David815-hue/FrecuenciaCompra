@@ -1,10 +1,24 @@
-import React, { useState } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, X, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Upload, FileSpreadsheet, CheckCircle, X, ArrowRight, Zap, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getLatestOrderDate } from '../utils/firestoreUtils';
 
 const FileUpload = ({ onFilesUploaded }) => {
     const [albatrossFile, setAlbatrossFile] = useState(null);
     const [rmsFile, setRmsFile] = useState(null);
+    const [isIncremental, setIsIncremental] = useState(false);
+    const [latestDate, setLatestDate] = useState(null);
+    const [loadingDate, setLoadingDate] = useState(true);
+
+    // Load latest date on mount
+    useEffect(() => {
+        const fetchLatestDate = async () => {
+            const date = await getLatestOrderDate();
+            setLatestDate(date);
+            setLoadingDate(false);
+        };
+        fetchLatestDate();
+    }, []);
 
     const handleFileChange = (e, type) => {
         const file = e.target.files[0];
@@ -16,7 +30,7 @@ const FileUpload = ({ onFilesUploaded }) => {
 
     const handleProcess = () => {
         if (albatrossFile && rmsFile) {
-            onFilesUploaded(albatrossFile, rmsFile);
+            onFilesUploaded(albatrossFile, rmsFile, isIncremental);
         }
     };
 
@@ -49,6 +63,48 @@ const FileUpload = ({ onFilesUploaded }) => {
                         Sube tus archivos de datos para generar visualizaciones avanzadas sobre el comportamiento de tus clientes.
                     </p>
                 </div>
+
+                {/* Upload Mode Selector */}
+                <div className="mb-8 flex justify-center">
+                    <div className="inline-flex items-center gap-4 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm rounded-2xl p-3 border border-slate-200 dark:border-slate-700">
+                        <button
+                            onClick={() => setIsIncremental(false)}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${!isIncremental
+                                ? 'bg-slate-900 dark:bg-slate-700 text-white shadow-lg'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                                }`}
+                        >
+                            <RefreshCw size={18} />
+                            Carga Completa
+                        </button>
+                        <button
+                            onClick={() => setIsIncremental(true)}
+                            disabled={!latestDate}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${isIncremental
+                                ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed'
+                                }`}
+                        >
+                            <Zap size={18} />
+                            Carga Incremental
+                        </button>
+                    </div>
+                </div>
+
+                {/* Latest Date Info */}
+                {isIncremental && latestDate && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-8 text-center"
+                    >
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                            <span className="font-semibold">Último registro:</span> <span className="font-bold text-indigo-600 dark:text-indigo-400">{latestDate.toLocaleDateString('es-HN', { year: 'numeric', month: 'long', day: 'numeric' })} a las {latestDate.toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <br />
+                            <span className="text-xs mt-1 inline-block">Se subirán solo pedidos posteriores a esta fecha</span>
+                        </p>
+                    </motion.div>
+                )}
 
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
                     {/* Albatross Upload */}
@@ -85,7 +141,7 @@ const FileUpload = ({ onFilesUploaded }) => {
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'}
                         `}
                     >
-                        <span className="relative z-10">Procesar Información</span>
+                        <span className="relative z-10">{isIncremental ? 'Actualizar Datos' : 'Procesar Información'}</span>
                         {albatrossFile && rmsFile && <ArrowRight className="relative z-10 group-hover:translate-x-1 transition-transform" size={20} />}
 
                         {/* Button Shine Effect */}

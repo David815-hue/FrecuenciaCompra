@@ -248,6 +248,194 @@ export const clearAllData = async () => {
 };
 
 /**
+ * Get the latest order date from Firestore
+ * Returns null if no orders exist
+ */
+export const getLatestOrderDate = async () => {
+    try {
+        const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+
+        let latestDate = null;
+
+        querySnapshot.forEach((doc) => {
+            const customer = doc.data();
+            if (customer.orders && customer.orders.length > 0) {
+                customer.orders.forEach(order => {
+                    const orderDate = new Date(order.orderDate);
+                    if (!isNaN(orderDate)) {
+                        if (!latestDate || orderDate > latestDate) {
+                            latestDate = orderDate;
+                        }
+                    }
+                });
+            }
+        });
+
+        console.log(`📅 Latest order date in Firestore: ${latestDate || 'No data'}`);
+        return latestDate;
+    } catch (error) {
+        console.error('Error getting latest order date:', error);
+        return null;
+    }
+};
+
+/**
+ * Save customers to Firestore in INCREMENTAL mode
+ * Merges new orders with existing customer data instead of replacing
+ */
+export const saveCustomersToFirestoreIncremental = async (orders) => {
+    try {
+        console.log(`Starting INCREMENTAL Firestore save for ${orders.length} orders...`);
+
+        // Step 1: Get existing customers from Firestore
+        const existingCustomersMap = {};
+        const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+
+        querySnapshot.forEach((doc) => {
+            const customer = doc.data();
+            const key = customer.email || customer.phone || doc.id;
+            existingCustomersMap[key] = {
+                ...customer,
+                docId: doc.id
+            };
+        });
+
+        console.log(`Found ${querySnapshot.size} existing customers in Firestore`);
+
+        // Step 2: Group new orders by customer
+        const customerMap = {};
+        orders.forEach(order => {
+            const key = order.email || order.phone || `unknown_${order.customerName || order.name}`;
+
+            if (!customerMap[key]) {
+                customerMap[key] = {
+                    name: order.customerName || order.name,
+                    email: order.email,
+                    phone: order.phone,
+                    city: order.city,
+                    identity: order.identity,
+                    orders: []
+                };
+            }
+
+            customerMap[key].orders.push({
+                orderId: order.orderId,
+                rawId: order.rawId,
+                orderDate: order.orderDate,
+                totalAmount: order.totalAmount,
+                items: order.items || [],
+                channel: order.channel
+            });
+        });
+
+        const newCustomers = Object.entries(customerMap);
+        console.log(`Grouped into ${newCustomers.length} customers to update/add`);
+
+        // Helper: Remove undefined values
+        const sanitize = (obj) => {
+            const clean = {};
+            Object.keys(obj).forEach(key => {
+                const value = obj[key];
+                if (value !== undefined && value !== null) {
+                    if (Array.isArray(value)) {
+                        clean[key] = value;
+                    } else if (typeof value === 'object') {
+                        clean[key] = sanitize(value);
+                    } else {
+                        clean[key] = value;
+                    }
+                }
+            });
+            return clean;
+        };
+
+        // Step 3: Merge with existing data and save in batches
+        const BATCH_SIZE = 100;
+        let totalSaved = 0;
+
+        for (let i = 0; i < newCustomers.length; i += BATCH_SIZE) {
+            const batch = writeBatch(db);
+            const chunk = newCustomers.slice(i, i + BATCH_SIZE);
+
+            chunk.forEach(([key, newCustomer]) => {
+                const existingCustomer = existingCustomersMap[key];
+
+                let docId;
+                let mergedOrders;
+
+                if (existingCustomer) {
+                    // Customer exists - merge orders
+                    docId = existingCustomer.docId;
+
+                    // Create a map of existing orders by orderId to avoid duplicates
+                    const existingOrdersMap = {};
+                    (existingCustomer.orders || []).forEach(order => {
+                        existingOrdersMap[order.orderId] = order;
+                    });
+
+                    // Add new orders, replacing duplicates
+                    newCustomer.orders.forEach(order => {
+                        existingOrdersMap[order.orderId] = order;
+                    });
+
+                    mergedOrders = Object.values(existingOrdersMap);
+
+                    console.log(`🔄 Merging customer ${newCustomer.name}: ${existingCustomer.orders?.length || 0} existing + ${newCustomer.orders.length} new = ${mergedOrders.length} total orders`);
+                } else {
+                    // New customer - use new data
+                    docId = newCustomer.email
+                        ? newCustomer.email.replace(/[^a-zA-Z0-9]/g, '_')
+                        : newCustomer.phone
+                            ? newCustomer.phone.replace(/[^a-zA-Z0-9]/g, '_')
+                            : `customer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+                    mergedOrders = newCustomer.orders;
+
+                    console.log(`➕ Adding new customer ${newCustomer.name}: ${mergedOrders.length} orders`);
+                }
+
+                const docRef = doc(db, COLLECTION_NAME, docId);
+
+                const cleanCustomer = sanitize({
+                    name: newCustomer.name || 'Sin nombre',
+                    email: newCustomer.email || '',
+                    phone: newCustomer.phone || '',
+                    city: newCustomer.city || '',
+                    identity: newCustomer.identity || '',
+                    orders: mergedOrders,
+                    lastUpdated: serverTimestamp()
+                });
+
+                batch.set(docRef, cleanCustomer);
+            });
+
+            await batch.commit();
+            totalSaved += chunk.length;
+            console.log(`✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}: Saved ${totalSaved}/${newCustomers.length} customers`);
+
+            // Add delay between batches
+            if (i + BATCH_SIZE < newCustomers.length) {
+                await delay(500);
+            }
+        }
+
+        console.log(`🎉 Successfully saved ${totalSaved} customers in INCREMENTAL mode`);
+
+        return {
+            success: true,
+            count: totalSaved,
+            timestamp: new Date()
+        };
+    } catch (error) {
+        console.error('❌ Error in incremental save:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+/**
  * Update a single customer
  */
 export const updateCustomer = async (customerId, data) => {

@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart3, TrendingUp, Activity } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart3, TrendingUp, Activity, Package, Hash } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
+import { getSuggestions } from '../utils/searchSuggestions';
 import MonthVisualizer from './MonthVisualizer';
 import ProductDetailsModal from './ProductDetailsModal';
 import ContributionModal from './ContributionModal';
@@ -31,6 +32,11 @@ const Dashboard = ({ data, onBack }) => {
     // Search helper tooltip state
     const [showSearchTooltip, setShowSearchTooltip] = useState(false);
 
+    // Search suggestions state
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [suggestions, setSuggestions] = useState(null);
+    const searchRef = useRef(null);
+
     // Auto-show search tooltip on mount
     useEffect(() => {
         setShowSearchTooltip(true);
@@ -42,6 +48,36 @@ const Dashboard = ({ data, onBack }) => {
 
         return () => clearTimeout(timer);
     }, []);
+
+    // Generate suggestions when query changes
+    useEffect(() => {
+        if (query.length >= 2) {
+            const results = getSuggestions(data, query);
+            setSuggestions(results);
+            setShowSuggestions(true);
+        } else {
+            setSuggestions(null);
+            setShowSuggestions(false);
+        }
+    }, [query, data]);
+
+    // Close suggestions when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (searchRef.current && !searchRef.current.contains(event.target)) {
+                setShowSuggestions(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Handle suggestion click
+    const handleSuggestionClick = (suggestionQuery) => {
+        setQuery(suggestionQuery);
+        setShowSuggestions(false);
+    };
 
     // Helper to handle sort clicks
     const handleSort = (key) => {
@@ -327,7 +363,7 @@ const Dashboard = ({ data, onBack }) => {
                     {/* Controls Bar */}
                     <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-2 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/30 dark:border-slate-700/50 transition-all duration-300 overflow-visible">
                         {/* Search Input */}
-                        <div className="relative w-full md:w-96 group">
+                        <div ref={searchRef} className="relative w-full md:w-96 group">
                             <div
                                 className="absolute top-1/2 -translate-y-1/2 left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors cursor-pointer"
                                 onClick={() => {
@@ -344,11 +380,128 @@ const Dashboard = ({ data, onBack }) => {
                                 placeholder="Buscar por SKU, Email, Teléfono..."
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
+                                onFocus={() => query.length >= 2 && setShowSuggestions(true)}
                             />
+
+                            {/* Search Suggestions Dropdown */}
+                            <AnimatePresence>
+                                {showSuggestions && suggestions && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -5 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="absolute top-full left-0 right-0 mt-2 z-[9999] max-h-[400px] overflow-y-auto custom-scrollbar"
+                                    >
+                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl shadow-slate-900/10 dark:shadow-black/40 overflow-hidden">
+                                            {/* SKUs Section */}
+                                            {suggestions.skus.length > 0 && (
+                                                <div className="border-b border-slate-100 dark:border-slate-800">
+                                                    <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
+                                                        <Package size={14} className="text-indigo-500" />
+                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                            SKUs ({suggestions.skus.length})
+                                                        </span>
+                                                    </div>
+                                                    <div className="py-1">
+                                                        {suggestions.skus.map((item, idx) => (
+                                                            <button
+                                                                key={`sku-${idx}`}
+                                                                onClick={() => handleSuggestionClick(item.sku)}
+                                                                className="w-full px-4 py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors flex items-center justify-between gap-3 text-left group"
+                                                            >
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">
+                                                                        {item.sku}
+                                                                    </div>
+                                                                    {item.description && (
+                                                                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                                                            {item.description}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-1 rounded-full shrink-0">
+                                                                    {item.count} {item.count === 1 ? 'pedido' : 'pedidos'}
+                                                                </span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Customers Section */}
+                                            {suggestions.customers.length > 0 && (
+                                                <div className="border-b border-slate-100 dark:border-slate-800">
+                                                    <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
+                                                        <User size={14} className="text-emerald-500" />
+                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                            Clientes ({suggestions.customers.length})
+                                                        </span>
+                                                    </div>
+                                                    <div className="py-1">
+                                                        {suggestions.customers.map((item, idx) => (
+                                                            <button
+                                                                key={`customer-${idx}`}
+                                                                onClick={() => handleSuggestionClick(item.name)}
+                                                                className="w-full px-4 py-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors flex flex-col gap-1 text-left"
+                                                            >
+                                                                <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">
+                                                                    {item.name}
+                                                                </div>
+                                                                <div className="flex gap-3 text-xs text-slate-500 dark:text-slate-400">
+                                                                    {item.email && <span className="truncate">{item.email}</span>}
+                                                                    {item.phone && <span className="font-mono">{item.phone}</span>}
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Identities Section */}
+                                            {suggestions.identities.length > 0 && (
+                                                <div>
+                                                    <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
+                                                        <Hash size={14} className="text-violet-500" />
+                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                            Identidades ({suggestions.identities.length})
+                                                        </span>
+                                                    </div>
+                                                    <div className="py-1">
+                                                        {suggestions.identities.map((item, idx) => (
+                                                            <button
+                                                                key={`identity-${idx}`}
+                                                                onClick={() => handleSuggestionClick(item.identity)}
+                                                                className="w-full px-4 py-2.5 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors flex items-center justify-between gap-3 text-left"
+                                                            >
+                                                                <div className="flex-1">
+                                                                    <div className="font-mono font-semibold text-sm text-slate-800 dark:text-slate-200">
+                                                                        {item.identity}
+                                                                    </div>
+                                                                    {item.name && (
+                                                                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                            {item.name}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {item.phone && (
+                                                                    <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">
+                                                                        {item.phone}
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
                             {/* Animated Search Helper Tooltip */}
                             <AnimatePresence>
-                                {showSearchTooltip && (
+                                {showSearchTooltip && !showSuggestions && (
                                     <motion.div
                                         initial={{ opacity: 0, y: -10, scale: 0.95 }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}

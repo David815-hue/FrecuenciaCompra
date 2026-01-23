@@ -3,46 +3,7 @@ import { format, eachMonthOfInterval, startOfMonth, endOfMonth, isWithinInterval
 import { es } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const ProductSummary = ({ items }) => {
-    // Group by SKU, excluding delivery service
-    const grouped = items.reduce((acc, item) => {
-        // Skip delivery service SKU
-        if (item.sku === '20000025') return acc;
 
-        if (!acc[item.sku]) {
-            acc[item.sku] = { ...item, totalQuantity: 0, totalAmount: 0 };
-        }
-        acc[item.sku].totalQuantity += parseInt(item.quantity) || 0;
-        acc[item.sku].totalAmount += parseFloat(item.lineTotal) || 0;
-        return acc;
-    }, {});
-
-    const topProducts = Object.values(grouped)
-        .sort((a, b) => b.totalAmount - a.totalAmount)
-        .slice(0, 3);
-
-    return (
-        <div className="flex flex-col gap-2">
-            {topProducts.map(p => (
-                <div key={p.sku} className="flex justify-between items-center text-[10px] border-b border-slate-700/50 pb-1 last:border-0 hover:bg-slate-800/50 p-1 rounded transition-colors">
-                    <div className="flex flex-col truncate pr-2">
-                        <span className="text-slate-200 font-medium truncate w-32" title={p.description}>{p.description}</span>
-                        <span className="text-slate-500 font-mono text-[9px]">{p.sku}</span>
-                    </div>
-                    <div className="flex flex-col items-end shrink-0">
-                        <span className="text-indigo-300 font-bold whitespace-nowrap">L. {(p.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        <span className="text-slate-400 font-medium">{p.totalQuantity} un.</span>
-                    </div>
-                </div>
-            ))}
-            {Object.keys(grouped).length > 3 && (
-                <div className="text-[9px] text-center text-slate-500 font-medium pt-1">
-                    + {Object.keys(grouped).length - 3} productos más
-                </div>
-            )}
-        </div>
-    );
-};
 
 const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     const [hoveredMonth, setHoveredMonth] = useState(null);
@@ -100,7 +61,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     };
 
     return (
-        <div className="flex w-full min-w-[200px] border border-slate-200/60 dark:border-slate-700/60 rounded-xl divide-x divide-slate-100 dark:divide-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm overflow-hidden transition-colors duration-300">
+        <div className="flex w-full min-w-[200px] border border-slate-200/60 dark:border-slate-700/60 rounded-xl divide-x divide-slate-100 dark:divide-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm transition-colors duration-300">
             {timeline.map((dateObj, idx) => {
                 const key = format(dateObj, 'yyyy-MM');
                 const data = monthData[key];
@@ -119,7 +80,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                     <motion.div
                         key={key}
                         className={`
-                            relative flex-1 h-9 flex items-center justify-center text-[10px] transition-all duration-200
+                            relative flex-1 h-9 flex items-center justify-center text-[10px] transition-all duration-200 first:rounded-l-xl last:rounded-r-xl
                             ${getIntensityClass(count)}
                             ${count > 0 ? 'active:scale-95' : ''}
                         `}
@@ -139,27 +100,34 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                             <div className="absolute -left-[1px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-400 dark:from-indigo-500 dark:via-indigo-400 dark:to-indigo-500 z-30" />
                         )}
 
-                        {/* Tooltip */}
+                        {/* Glassmorphism Tooltip */}
                         {count > 0 && isHovered && data && (
-                            <div className="absolute bottom-full right-0 mb-3 w-72 p-0 bg-slate-900 dark:bg-black/95 text-white text-xs rounded-2xl shadow-2xl z-[100] pointer-events-none transform origin-bottom-right animate-in fade-in zoom-in-95 duration-200 border border-slate-700 overflow-hidden">
-                                {/* Tooltip Header */}
-                                <div className="bg-gradient-to-r from-slate-800 to-slate-900 dark:from-slate-900 dark:to-black px-4 py-3 border-b border-slate-700 flex justify-between items-center">
-                                    <span className="text-sm font-bold capitalize text-white">{format(dateObj, 'MMMM yyyy', { locale: es })}</span>
-                                    <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30 flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
-                                        {count} pedidos
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 min-w-[220px] p-4 bg-white/20 dark:bg-slate-900/60 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 rounded-2xl shadow-xl z-[100] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                                <div className="flex flex-col items-center text-center gap-1">
+                                    <span className="text-sm font-bold capitalize text-slate-900 dark:text-white drop-shadow-sm">
+                                        {format(dateObj, 'MMMM yyyy', { locale: es })}
                                     </span>
+
+                                    <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-400/30 to-transparent my-1" />
+
+                                    <div className="flex flex-col gap-0.5 w-full">
+                                        <div className="flex justify-between items-center text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                            <span className="whitespace-nowrap">Total pedidos:</span>
+                                            <span className="font-bold text-slate-900 dark:text-white bg-white/30 dark:bg-slate-800/50 px-1.5 rounded">
+                                                {count}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                            <span className="whitespace-nowrap">Gasto del mes:</span>
+                                            <span className="font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                                L. {data.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                {/* Tooltip Body */}
-                                <div className="p-4 space-y-3 max-h-60 overflow-y-auto custom-scrollbar-dark bg-slate-900/95 dark:bg-black/80">
-                                    <ProductSummary items={data.items || []} />
-                                </div>
-
-                                {/* Tooltip Footer */}
-                                <div className="bg-slate-950/50 dark:bg-black/50 px-4 py-2 text-center border-t border-slate-800">
-                                    <span className="text-indigo-400 text-[10px] font-semibold tracking-wide uppercase">👆 Haz clic para ver detalles</span>
-                                </div>
+                                {/* Arrow */}
+                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white/20 dark:bg-slate-900/60 backdrop-blur-xl border-r border-b border-white/30 dark:border-slate-700/50 rotate-45 transform"></div>
                             </div>
                         )}
                     </motion.div>

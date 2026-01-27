@@ -90,7 +90,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             name: c.name,
             phone: c.phone || 'No disponible',
             lastPurchaseDate: lastPurchaseDate,
-            r: Math.max(5, Math.min(30, c.rfm.monetaryScore * 6)),
+            monetaryScore: c.rfm.monetaryScore,
             info: getSegmentInfo(c.rfm.segment)
         };
     });
@@ -295,7 +295,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                 tick={{ fill: '#64748b', fontSize: 11 }}
                                 label={{ value: 'Frecuencia', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }}
                             />
-                            <ZAxis type="number" dataKey="r" range={[50, 400]} />
+                            <ZAxis type="number" dataKey="monetaryScore" range={[60, 600]} domain={[1, 5]} />
                             <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                             {Object.keys(rfmData.stats).map((segment) => {
                                 const segmentInfo = getSegmentInfo(segment);
@@ -500,7 +500,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                                 tick={{ fill: '#64748b', fontSize: 14 }}
                                                 label={{ value: 'Frecuencia (pedidos)', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 14 }}
                                             />
-                                            <ZAxis type="number" dataKey="r" range={[100, 800]} />
+                                            <ZAxis type="number" dataKey="monetaryScore" range={[100, 1000]} domain={[1, 5]} />
                                             <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                                             {Object.keys(rfmData.stats).map((segment) => {
                                                 const segmentInfo = getSegmentInfo(segment);

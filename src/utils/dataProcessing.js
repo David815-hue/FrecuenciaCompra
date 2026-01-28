@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { getGestorInfo } from '../config/gestores';
 
 // Helper to parse Excel file to JSON
 export const parseExcel = (file) => {
@@ -24,6 +25,7 @@ export const parseExcel = (file) => {
 // Clean Albatross Data
 // Requirement: Order ID starts with '00', remove it. May end with '-I', remove it.
 // NEW Requirement: Only 'Entregado' status.
+// NEW: Extract 'Usuario POS' field and map to gestor info
 export const cleanAlbatrossData = (data) => {
     return data
         .filter(row => row['Estado'] === 'Entregado')
@@ -35,6 +37,10 @@ export const cleanAlbatrossData = (data) => {
 
             // Remove '-I' suffix if present
             cleanedId = cleanedId.replace(/-I$/, '');
+
+            // Extract POS User and map to gestor info
+            const posUserEmail = row['Usuario POS'] || '';
+            const gestorInfo = getGestorInfo(posUserEmail);
 
             // Keep only relevant fields, but keep originalRow for export
             return {
@@ -50,6 +56,10 @@ export const cleanAlbatrossData = (data) => {
                 city: row['Ciudad'],
                 pharmacy: row['Farmacia'],
                 orderDate: row['Pedido Generado'],
+                // POS User / Gestor Information
+                posUser: posUserEmail,
+                gestorName: gestorInfo?.gestor || null,
+                gestorZone: gestorInfo?.zona || null,
                 originalRow: row // Keep for full export
             };
         });

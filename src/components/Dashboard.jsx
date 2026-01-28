@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart3, TrendingUp, Activity, Package, Hash } from 'lucide-react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Users, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart3, TrendingUp, Activity, Package, Hash } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import { getSuggestions } from '../utils/searchSuggestions';
 import MonthVisualizer from './MonthVisualizer';
 import ProductDetailsModal from './ProductDetailsModal';
 import ContributionModal from './ContributionModal';
 import RFMAnalysis from './RFMAnalysis';
+import GestoresAnalysis from './GestoresAnalysis';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -610,6 +611,18 @@ const Dashboard = ({ data, onBack }) => {
                                 <TrendingUp size={16} />
                                 Análisis RFM
                             </button>
+                            <button
+                                onClick={() => setViewMode('gestores')}
+                                className={`
+                                    flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm
+                                    ${viewMode === 'gestores'
+                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}
+                                `}
+                            >
+                                <Users size={16} />
+                                Gestores
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -690,7 +703,7 @@ const Dashboard = ({ data, onBack }) => {
                 )}
             </header>
 
-            {/* Conditional Content: Table or RFM */}
+            {/* Conditional Content: Table, RFM or Gestores */}
             {viewMode === 'table' ? (
                 <>
                     {/* Table Area */}
@@ -975,10 +988,15 @@ const Dashboard = ({ data, onBack }) => {
                         searchQuery={query}
                     />
                 </>
-            ) : (
+            ) : viewMode === 'rfm' ? (
                 /* RFM Analysis View */
                 <div className="mb-8">
                     <RFMAnalysis customers={displayList} searchQuery={query} />
+                </div>
+            ) : (
+                /* Gestores Analysis View */
+                <div className="mb-8">
+                    <GestoresAnalysis data={data} />
                 </div>
             )}
         </div>

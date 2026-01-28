@@ -50,7 +50,11 @@ export const saveCustomersToFirestore = async (orders) => {
                 orderDate: order.orderDate,
                 totalAmount: order.totalAmount,
                 items: order.items || [],
-                channel: order.channel
+                channel: order.channel,
+                // Gestor information
+                posUser: order.posUser || '',
+                gestorName: order.gestorName || null,
+                gestorZone: order.gestorZone || null
             });
         });
 
@@ -162,7 +166,12 @@ export const loadCustomersFromFirestore = async () => {
                         orderDate: order.orderDate,
                         totalAmount: order.totalAmount,
                         items: order.items || [],
-                        channel: order.channel
+                        channel: order.channel,
+
+                        // Gestor information
+                        posUser: order.posUser || '',
+                        gestorName: order.gestorName || null,
+                        gestorZone: order.gestorZone || null
                     });
                 });
             }
@@ -324,7 +333,11 @@ export const saveCustomersToFirestoreIncremental = async (orders) => {
                 orderDate: order.orderDate,
                 totalAmount: order.totalAmount,
                 items: order.items || [],
-                channel: order.channel
+                channel: order.channel,
+                // Gestor information
+                posUser: order.posUser || '',
+                gestorName: order.gestorName || null,
+                gestorZone: order.gestorZone || null
             });
         });
 

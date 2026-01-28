@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, TrendingUp, ShoppingCart, DollarSign, MapPin, User, Mail, Phone, Calendar, ChevronDown } from 'lucide-react';
+import { Users, TrendingUp, ShoppingCart, DollarSign, MapPin, User, Mail, Phone, Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getZonas, getGestoresByZona } from '../config/gestores';
 import MonthVisualizer from './MonthVisualizer';

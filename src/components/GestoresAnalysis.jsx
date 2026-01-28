@@ -9,6 +9,13 @@ import { es } from 'date-fns/locale';
 const GestoresAnalysis = ({ data }) => {
     const [selectedZona, setSelectedZona] = useState('all');
     const [selectedGestor, setSelectedGestor] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 50;
+
+    // Reset pagination when filters change
+    useMemo(() => {
+        setCurrentPage(1);
+    }, [selectedZona, selectedGestor]);
 
     // Get unique zones
     const zonas = useMemo(() => getZonas(), []);
@@ -23,19 +30,19 @@ const GestoresAnalysis = ({ data }) => {
 
     // Filter orders by selected gestor/zona
     const filteredOrders = useMemo(() => {
-        // PERF: Don't calculate if nothing selected
-        if (selectedZona === 'all' && selectedGestor === 'all') {
+        // PERF: Strict loading - ONLY load if a specific gestor is selected
+        if (selectedGestor === 'all') {
             return [];
         }
 
         return data.filter(order => {
-            // Filter by zona first
+            // Filter by zona first (implicit if gestor is selected, but good for safety)
             if (selectedZona !== 'all' && order.gestorZone !== selectedZona) {
                 return false;
             }
 
-            // Filter by gestor
-            if (selectedGestor !== 'all' && order.gestorName !== selectedGestor) {
+            // Filter by gestor (Strict check already passed above, but kept for clarity)
+            if (order.gestorName !== selectedGestor) {
                 return false;
             }
 
@@ -117,8 +124,8 @@ const GestoresAnalysis = ({ data }) => {
     // Analyze full history to detect shared customers
     // This runs on ALL data, not just filtered orders
     const customerGestorHistory = useMemo(() => {
-        // PERF: Don't calculate if nothing selected (metrics/table won't be shown anyway)
-        if (selectedZona === 'all' && selectedGestor === 'all') {
+        // PERF: Don't calculate calculate if no gestor selected
+        if (selectedGestor === 'all') {
             return {};
         }
 
@@ -147,12 +154,22 @@ const GestoresAnalysis = ({ data }) => {
         });
 
         return history;
-    }, [data]);
+    }, [data, selectedGestor]); // Added selectedGestor dependency
 
 
     const handleMonthClick = (customer) => (monthKey, monthData) => {
         // Can implement modal here later if needed
         console.log('Month clicked:', monthKey, monthData);
+    };
+
+    // Pagination Logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentCustomers = customers.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(customers.length / itemsPerPage);
+
+    const handlePageChange = (pageNumber) => {
+        setCurrentPage(pageNumber);
     };
 
     return (
@@ -195,7 +212,7 @@ const GestoresAnalysis = ({ data }) => {
                             onChange={(e) => setSelectedGestor(e.target.value)}
                             className="w-full appearance-none px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 font-semibold outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all cursor-pointer"
                         >
-                            <option value="all">👤 Todos los Gestores</option>
+                            <option value="all">👤 Selecciona un Gestor...</option>
                             {availableGestores.map(gestor => (
                                 <option key={gestor.email} value={gestor.nombre}>
                                     👤 {gestor.nombre} ({gestor.zona})
@@ -311,7 +328,7 @@ const GestoresAnalysis = ({ data }) => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                {customers.map((customer, idx) => {
+                                {currentCustomers.map((customer, idx) => {
                                     // Check if shared
                                     const allHistory = customerGestorHistory[customer.email || customer.phone || customer.name] || { gestores: {}, totalGestores: 0 };
                                     const isShared = allHistory.totalGestores > 1;
@@ -424,19 +441,52 @@ const GestoresAnalysis = ({ data }) => {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    {customers.length > itemsPerPage && (
+                        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+                            <button
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={currentPage === 1}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+                                    ${currentPage === 1
+                                        ? 'text-slate-400 cursor-not-allowed'
+                                        : 'text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+                                    }`}
+                            >
+                                <ChevronLeft size={16} />
+                                Anterior
+                            </button>
+
+                            <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                Página <span className="text-slate-900 dark:text-white font-bold">{currentPage}</span> de <span className="font-bold">{totalPages}</span>
+                            </div>
+
+                            <button
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={currentPage === totalPages}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+                                    ${currentPage === totalPages
+                                        ? 'text-slate-400 cursor-not-allowed'
+                                        : 'text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+                                    }`}
+                            >
+                                Siguiente
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-12 rounded-2xl border border-white/30 dark:border-slate-700/50 text-center">
                     <Users size={48} className="mx-auto mb-4 text-slate-300 dark:text-slate-600" />
                     <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300 mb-2">
-                        No hay clientes para mostrar
+                        {selectedGestor === 'all' ? 'Selecciona un Gestor' : 'No hay clientes'}
                     </h3>
                     <p className="text-slate-500 dark:text-slate-400">
-                        {selectedGestor !== 'all'
-                            ? `No se encontraron clientes atendidos por ${selectedGestor}`
-                            : selectedZona !== 'all'
-                                ? `No se encontraron clientes en la zona ${selectedZona}`
-                                : 'Selecciona una zona o gestor para ver los clientes'}
+                        {selectedGestor === 'all'
+                            ? 'Para visualizar los datos, selecciona primero una Zona y luego un Gestor específico.'
+                            : `El gestor ${selectedGestor} no tiene clientes asignados.`}
                     </p>
                 </div>
             )}

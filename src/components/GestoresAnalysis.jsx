@@ -23,6 +23,11 @@ const GestoresAnalysis = ({ data }) => {
 
     // Filter orders by selected gestor/zona
     const filteredOrders = useMemo(() => {
+        // PERF: Don't calculate if nothing selected
+        if (selectedZona === 'all' && selectedGestor === 'all') {
+            return [];
+        }
+
         return data.filter(order => {
             // Filter by zona first
             if (selectedZona !== 'all' && order.gestorZone !== selectedZona) {
@@ -112,6 +117,11 @@ const GestoresAnalysis = ({ data }) => {
     // Analyze full history to detect shared customers
     // This runs on ALL data, not just filtered orders
     const customerGestorHistory = useMemo(() => {
+        // PERF: Don't calculate if nothing selected (metrics/table won't be shown anyway)
+        if (selectedZona === 'all' && selectedGestor === 'all') {
+            return {};
+        }
+
         const history = {};
 
         data.forEach(order => {

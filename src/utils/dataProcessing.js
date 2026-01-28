@@ -43,6 +43,30 @@ export const cleanAlbatrossData = (data) => {
             const gestorInfo = getGestorInfo(posUserEmail);
 
             // Keep only relevant fields, but keep originalRow for export
+            // Robust Date Parsing
+            const parseDate = (dateVal) => {
+                if (!dateVal) return null;
+                // If it's a number (Excel serial date) - though we use raw:false, sometimes it leaks or if changed later
+                if (typeof dateVal === 'number') {
+                    return new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+                }
+
+                // If string
+                if (typeof dateVal === 'string') {
+                    // Try standard date first
+                    let d = new Date(dateVal);
+                    if (!isNaN(d.getTime())) return dateVal; // If standard parsing works (e.g. YYYY-MM-DD), keep it.
+
+                    // Try DD/MM/YYYY format which is common in LATAM
+                    const parts = dateVal.split('/');
+                    if (parts.length === 3) {
+                        // Swap to MM/DD/YYYY for JS parsing or YYYY-MM-DD
+                        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    }
+                }
+                return dateVal;
+            };
+
             return {
                 orderId: cleanedId,
                 rawId: rawId,
@@ -55,7 +79,7 @@ export const cleanAlbatrossData = (data) => {
                 phone: row['Celular del cliente'],
                 city: row['Ciudad'],
                 pharmacy: row['Farmacia'],
-                orderDate: row['Pedido Generado'],
+                orderDate: parseDate(row['Pedido Generado']),
                 // POS User / Gestor Information
                 posUser: posUserEmail,
                 gestorName: gestorInfo?.gestor || null,

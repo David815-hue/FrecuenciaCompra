@@ -25,14 +25,21 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                 count: 0,
                 items: [],
                 total: 0,
-                date: new Date(key + '-01') // Add date for formatting
+                date: new Date(key + '-01'), // Add date for formatting
+                gestores: {} // Track gestores and their order counts
             };
         }
         monthData[key].count++;
         monthData[key].total += parseFloat(order.totalAmount || 0);
-        // Add items if available (requires order structure update to include items here if needed for tooltip)
-        // Assuming order has items attached or we pass items differently.
-        // For now using empty items or if order has items prop.
+
+        // Track gestor information
+        const gestor = order.gestorName || 'Sin Asignar';
+        if (!monthData[key].gestores[gestor]) {
+            monthData[key].gestores[gestor] = 0;
+        }
+        monthData[key].gestores[gestor]++;
+
+        // Add items if available
         if (order.items) monthData[key].items.push(...order.items);
     });
 
@@ -123,6 +130,22 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                                                 L. {data.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </div>
+
+                                        {/* Gestor Information */}
+                                        {data.gestores && Object.keys(data.gestores).length > 0 && (
+                                            <>
+                                                <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-400/30 to-transparent my-1" />
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Gestores:</span>
+                                                    {Object.entries(data.gestores).map(([gestor, count]) => (
+                                                        <div key={gestor} className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-600 dark:text-slate-300 truncate">{gestor}</span>
+                                                            <span className="font-semibold text-indigo-600 dark:text-indigo-400 ml-2">{count}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 

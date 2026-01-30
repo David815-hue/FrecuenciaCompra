@@ -1,99 +1,134 @@
-﻿import React, { useState, useMemo } from 'react';
-import { Users, TrendingUp, ShoppingCart, DollarSign, MapPin, User, Mail, Phone, Calendar, ChevronDown, ChevronLeft, ChevronRight, Activity, Filter } from 'lucide-react';
+﻿import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { Users, TrendingUp, DollarSign, ShoppingBag, ShoppingCart, User, Filter, Search, X, Activity, Phone, Mail, MapPin, Calendar, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { getZonas, getGestoresByZona } from '../config/gestores';
 import MonthVisualizer from './MonthVisualizer';
 import ContributionGraph from './ContributionGraph';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 const GestoresAnalysis = ({ data }) => {
-    const [selectedZona, setSelectedZona] = useState('all');
+    const [selectedMonthData, setSelectedMonthData] = useState(null);
+
+    const [selectedZone, setSelectedZone] = useState('all');
     const [selectedGestor, setSelectedGestor] = useState('all');
+
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [expandedZones, setExpandedZones] = useState({});
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filterButtonRef = useRef(null);
+
+    // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
 
-    // Reset pagination when filters change
-    useMemo(() => {
-        setCurrentPage(1);
-    }, [selectedZona, selectedGestor]);
-
-    // Get unique zones
-    const zonas = useMemo(() => getZonas(), []);
-
-    // Build Tree Data for Sidebar
-    const treeData = useMemo(() => {
-        return zonas.map(zona => ({
-            name: zona,
-            gestores: getGestoresByZona(zona)
+    // PERF: useCallback to prevent function recreation
+    const toggleZone = useCallback((zone) => {
+        setExpandedZones(prev => ({
+            ...prev,
+            [zone]: !prev[zone]
         }));
-    }, [zonas]);
+    }, []);
 
-    // Get gestores filtered by zona
-    const availableGestores = useMemo(() => {
-        if (selectedZona === 'all') {
-            return getGestoresByZona();
-        }
-        return getGestoresByZona(selectedZona);
-    }, [selectedZona]);
+    const handleGestorSelect = useCallback((zone, gestor) => {
+        setSelectedZone(zone);
+        setSelectedGestor(gestor);
+        setIsFilterOpen(false);
+        setSearchTerm('');
+    }, []);
 
-    // Filter orders by selected gestor/zona
-    const filteredOrders = useMemo(() => {
-        // PERF: Strict loading - ONLY load if a specific gestor is selected
+    // Group gestores by zone
+    const gestoresByZone = useMemo(() => {
+        const grouped = {};
+
+        data.forEach(order => {
+            const zone = order.gestorZone || 'Sin Zona';
+            const gestor = order.gestorName || 'Sin Asignar';
+
+            if (!grouped[zone]) {
+                grouped[zone] = new Set();
+            }
+            grouped[zone].add(gestor);
+        });
+
+        // Convert sets to sorted arrays
+        const result = {};
+        Object.keys(grouped).sort().forEach(zone => {
+            result[zone] = Array.from(grouped[zone]).sort();
+        });
+
+        return result;
+    }, [data]);
+
+    // Filter zones/gestores based on search
+    const filteredZones = useMemo(() => {
+        if (!searchTerm) return gestoresByZone;
+
+        const term = searchTerm.toLowerCase();
+        const filtered = {};
+
+        Object.entries(gestoresByZone).forEach(([zone, gestores]) => {
+            const matchingGestores = gestores.filter(g => g.toLowerCase().includes(term));
+            if (matchingGestores.length > 0 || zone.toLowerCase().includes(term)) {
+                filtered[zone] = matchingGestores.length > 0 ? matchingGestores : gestores;
+            }
+        });
+
+        return filtered;
+    }, [gestoresByZone, searchTerm]);
+
+    // PERF: Filter data by selected gestor - optimized dependencies
+    const filteredCustomers = useMemo(() => {
+        // PERF: Early return for 'all' - skip expensive grouping if not needed
         if (selectedGestor === 'all') {
             return [];
         }
 
-        return data.filter(order => {
-            // Filter by zona first (implicit if gestor is selected, but good for safety)
-            if (selectedZona !== 'all' && order.gestorZone !== selectedZona) {
-                return false;
-            }
+        let filtered = data;
 
-            // Filter by gestor (Strict check already passed above, but kept for clarity)
-            if (order.gestorName !== selectedGestor) {
-                return false;
-            }
+        // Filter by gestor
+        if (selectedGestor !== 'all') {
+            filtered = filtered.filter(order => order.gestorName === selectedGestor);
+        }
 
-            return true;
-        });
-    }, [data, selectedZona, selectedGestor]);
-
-    // Group by customer
-    const customers = useMemo(() => {
+        // Group by customer
         const map = {};
-        filteredOrders.forEach(order => {
+        filtered.forEach(order => {
             const key = order.email || order.phone || order.name;
             if (!key) return;
 
             if (!map[key]) {
                 map[key] = {
-                    name: order.name,
-                    email: order.email,
-                    phone: order.phone,
-                    identity: order.identity || 'No se encontrÃ³',
-                    city: order.city,
+                    name: order.customerName || order.name || 'Sin nombre',
+                    email: order.email || '',
+                    phone: order.phone || '',
+                    identity: order.identity || '',
+                    city: order.city || '',
                     orders: [],
-                    totalInvestment: 0
+                    totalSpent: 0,
+                    lastPurchase: null
                 };
             }
-            map[key].orders.push(order);
-            map[key].totalInvestment += (order.totalAmount || 0);
 
-            if (order.identity && order.identity !== 'No se encontrÃ³' && (map[key].identity === 'No se encontrÃ³')) {
-                map[key].identity = order.identity;
+            map[key].orders.push(order);
+            map[key].totalSpent += parseFloat(order.totalAmount) || 0;
+
+            const orderDate = new Date(order.orderDate);
+            if (!map[key].lastPurchase || orderDate > new Date(map[key].lastPurchase)) {
+                map[key].lastPurchase = order.orderDate;
             }
         });
 
-        // Sort by order count (descending - most orders first)
-        return Object.values(map).sort((a, b) => b.orders.length - a.orders.length);
-    }, [filteredOrders]);
+        return Object.values(map).sort((a, b) => b.totalSpent - a.totalSpent);
+
+    }, [data, selectedGestor]); // PERF FIX: Removed unnecessary dependencies
 
     // Calculate metrics
     const metrics = useMemo(() => {
-        const totalClientes = customers.length;
-        const totalPedidos = filteredOrders.length;
-        const totalVentas = filteredOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+        const totalClientes = filteredCustomers.length;
+        const totalPedidos = filteredCustomers.reduce((sum, c) => sum + c.orders.length, 0);
+        const totalVentas = filteredCustomers.reduce((sum, c) => sum + c.totalSpent, 0);
         const promedioCliente = totalClientes > 0 ? totalVentas / totalClientes : 0;
 
         return {
@@ -102,14 +137,14 @@ const GestoresAnalysis = ({ data }) => {
             totalVentas,
             promedioCliente
         };
-    }, [customers, filteredOrders]);
+    }, [filteredCustomers]);
 
     // Calculate date range for month visualizer
     const dateRange = useMemo(() => {
         let minTime = Infinity;
         let maxTime = -Infinity;
 
-        customers.forEach(c => {
+        filteredCustomers.forEach(c => {
             c.orders.forEach(o => {
                 const d = new Date(o.orderDate);
                 if (!isNaN(d)) {
@@ -120,16 +155,12 @@ const GestoresAnalysis = ({ data }) => {
             });
         });
 
-        if (minTime === Infinity) return { min: new Date(), max: new Date() };
+        if (minTime === Infinity) {
+            return { min: null, max: null };
+        }
 
-        const minDate = new Date(minTime);
-        minDate.setDate(1);
-
-        const maxDate = new Date(maxTime);
-        maxDate.setDate(1);
-
-        return { min: minDate, max: maxDate };
-    }, [customers]);
+        return { min: new Date(minTime), max: new Date(maxTime) };
+    }, [filteredCustomers]);
 
     // Analyze full history to detect shared customers
     // This runs on ALL data, not just filtered orders
@@ -162,10 +193,23 @@ const GestoresAnalysis = ({ data }) => {
     }, [data]); // PERF FIX: Removed selectedGestor dependency - calculate once for all data
 
 
-    const [selectedMonthData, setSelectedMonthData] = useState(null);
     const [selectedCustomerHistory, setSelectedCustomerHistory] = useState(null);
-    const [isFilterOpen, setIsFilterOpen] = useState(false); // State for filter dropdown
-    const [filterSearch, setFilterSearch] = useState(''); // State for search input
+
+    // Pagination logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentCustomers = filteredCustomers.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+
+    const handlePageChange = (pageNumber) => {
+        setCurrentPage(pageNumber);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedGestor]);
 
     const handleMonthClick = (customer) => (monthKey, monthData) => {
         // monthData contains { count, total, date, items? }
@@ -185,16 +229,6 @@ const GestoresAnalysis = ({ data }) => {
         });
     };
 
-    // Pagination Logic
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentCustomers = customers.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(customers.length / itemsPerPage);
-
-    const handlePageChange = (pageNumber) => {
-        setCurrentPage(pageNumber);
-    };
-
     return (
         <div className="space-y-6">
             {/* Top Filter Bar */}
@@ -212,8 +246,8 @@ const GestoresAnalysis = ({ data }) => {
                         <div className="flex items-center gap-1.5 font-bold text-sm">
                             {selectedGestor !== 'all' ? (
                                 <><User size={14} className="text-indigo-200" /> {selectedGestor}</>
-                            ) : selectedZona !== 'all' ? (
-                                <><MapPin size={14} className="text-indigo-200" /> Zona {selectedZona}</>
+                            ) : selectedZone !== 'all' ? (
+                                <><MapPin size={14} className="text-indigo-200" /> Zona {selectedZone}</>
                             ) : (
                                 <><User size={14} className="text-indigo-200" /> Seleccione gestor</>
                             )}
@@ -250,97 +284,66 @@ const GestoresAnalysis = ({ data }) => {
                                     <input
                                         type="text"
                                         placeholder="Buscar gestor..."
-                                        value={filterSearch}
-                                        onChange={(e) => setFilterSearch(e.target.value)}
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
                                         className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white placeholder-slate-400"
                                     />
                                 </div>
 
                                 <div className="space-y-1">
+                                    {/* Zone List */}
+                                    {Object.entries(filteredZones).map(([zoneName, gestores]) => {
+                                        const isZoneActive = selectedZone === zoneName;
+                                        const isZoneExpanded = expandedZones[zoneName] ||
+                                            (selectedGestor !== 'all' && gestores.includes(selectedGestor));
 
-
-                                    {/* Tree View */}
-                                    {treeData
-                                        .filter(zona => {
-                                            if (!filterSearch) return true;
-                                            const search = filterSearch.toLowerCase();
-                                            return zona.name.toLowerCase().includes(search) ||
-                                                zona.gestores.some(g => g.nombre.toLowerCase().includes(search));
-                                        })
-                                        .map((zona) => {
-                                            const isZonaActive = selectedZona === zona.name;
-                                            // Only expand if specifically selected or contains selected gestor (not when 'all')
-                                            const isZonaExpanded = (isZonaActive && selectedGestor === 'all') ||
-                                                (selectedGestor !== 'all' && zona.gestores.some(g => g.nombre === selectedGestor));
-
-                                            return (
-                                                <div key={zona.name} className="space-y-1">
-                                                    <button
-                                                        onClick={() => {
-                                                            if (selectedZona === zona.name) {
-                                                                // Toggle logic: if already selected and viewing all gestores, could deselect or collapse?
-                                                                // Or better: keep currently simple, clicking header selects zone.
-                                                                // Logic below already handles setting zone.
-                                                                // Maybe allow toggling expansion if we add local state?
-                                                                // For now, simpler: Clicking header sets Zona, expands it due to isZonaActive.
-                                                                // User wants it closed by default.
-                                                                setSelectedZona(zona.name);
-                                                                setSelectedGestor('all');
-                                                            } else {
-                                                                setSelectedZona(zona.name);
-                                                                setSelectedGestor('all');
-                                                            }
-                                                        }}
-                                                        className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-between group ${isZonaActive && selectedGestor === 'all'
-                                                            ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800'
-                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                                                            }`}
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`p-1.5 rounded-lg transition-colors ${isZonaActive ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                                                                <MapPin size={14} />
-                                                            </div>
-                                                            {zona.name}
+                                        return (
+                                            <div key={zoneName} className="space-y-1">
+                                                <button
+                                                    onClick={() => toggleZone(zoneName)}
+                                                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-between group ${isZoneActive && selectedGestor === 'all'
+                                                        ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800'
+                                                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-1.5 rounded-lg transition-colors ${isZoneActive ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                                            <MapPin size={14} />
                                                         </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isZonaActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
-                                                            {zona.gestores.length}
-                                                        </span>
-                                                    </button>
+                                                        {zoneName}
+                                                    </div>
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isZoneActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {gestores.length}
+                                                    </span>
+                                                </button>
 
-                                                    {/* Nested Gestores */}
-                                                    {isZonaExpanded && (
-                                                        <div className="ml-4 pl-4 border-l-2 border-slate-100 dark:border-slate-800 space-y-0.5 py-1">
-                                                            {zona.gestores
-                                                                .filter(gestor => {
-                                                                    if (!filterSearch) return true;
-                                                                    return gestor.nombre.toLowerCase().includes(filterSearch.toLowerCase());
-                                                                })
-                                                                .map(gestor => {
-                                                                    const isGestorActive = selectedGestor === gestor.nombre;
-                                                                    return (
-                                                                        <button
-                                                                            key={gestor.email}
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setSelectedGestor(gestor.nombre);
-                                                                                setSelectedZona(zona.name);
-                                                                                setIsFilterOpen(false); // Close on selection
-                                                                            }}
-                                                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${isGestorActive
-                                                                                ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
-                                                                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                                                                                }`}
-                                                                        >
-                                                                            <User size={12} className={isGestorActive ? 'text-indigo-600' : 'text-slate-400'} />
-                                                                            {gestor.nombre}
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
+                                                {/* Nested Gestores */}
+                                                {isZoneExpanded && (
+                                                    <div className="ml-4 pl-4 border-l-2 border-slate-100 dark:border-slate-800 space-y-0.5 py-1">
+                                                        {gestores.map(gestorName => {
+                                                            const isGestorActive = selectedGestor === gestorName;
+                                                            return (
+                                                                <button
+                                                                    key={gestorName}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleGestorSelect(zoneName, gestorName);
+                                                                    }}
+                                                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${isGestorActive
+                                                                        ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
+                                                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                                                        }`}
+                                                                >
+                                                                    <User size={12} className={isGestorActive ? 'text-indigo-600' : 'text-slate-400'} />
+                                                                    {gestorName}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </motion.div>
                         </>
@@ -435,14 +438,14 @@ const GestoresAnalysis = ({ data }) => {
                 </div>
 
                 {/* Customers Table */}
-                {customers.length > 0 ? (
+                {filteredCustomers.length > 0 ? (
                     <div className="bg-white/20 dark:bg-slate-900/20 backdrop-blur-3xl rounded-[2rem] shadow-[0_20px_60px_0_rgba(31,38,135,0.25)] dark:shadow-[0_20px_60px_0_rgba(0,0,0,0.6)] border border-white/30 dark:border-slate-700/40 overflow-hidden">
                         <div className="overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
-                                        <th className="px-8 py-6 w-[22rem]">Cliente</th>
-                                        <th className="px-6 py-6 w-56">Identidad</th>
+                                        <th className="px-6 py-6 w-80">Cliente</th>
+                                        <th className="px-4 py-6 w-48">Identidad</th>
                                         <th className="px-6 py-6 w-48 text-right">Total</th>
                                         <th className="px-6 py-6 min-w-[300px]">
                                             <div className="flex items-center gap-2">
@@ -477,8 +480,8 @@ const GestoresAnalysis = ({ data }) => {
                                                 key={`${customer.name}-${idx}`}
                                                 className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group"
                                             >
-                                                <td className="px-8 py-6 align-top">
-                                                    <div className="flex gap-4">
+                                                <td className="px-6 py-6 align-top">
+                                                    <div className="flex gap-3">
                                                         <div className="relative">
                                                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-sm shrink-0 shadow-inner">
                                                                 {(customer.name || 'N/A').substring(0, 2).toUpperCase()}
@@ -543,7 +546,7 @@ const GestoresAnalysis = ({ data }) => {
                                                     </div>
                                                 </td>
 
-                                                <td className="px-6 py-6 align-top">
+                                                <td className="px-4 py-6 align-top">
                                                     <div className="flex flex-col items-start gap-2">
                                                         <div className="font-mono text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                                                             {customer.identity}
@@ -559,7 +562,7 @@ const GestoresAnalysis = ({ data }) => {
 
                                                 <td className="px-6 py-6 align-top text-right">
                                                     <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight">
-                                                        L. {customer.totalInvestment.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        L. {(customer.totalSpent || 0).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </div>
                                                 </td>
 
@@ -597,8 +600,8 @@ const GestoresAnalysis = ({ data }) => {
                             </table>
                         </div>
 
-                        {/* Pagination Controls */}
-                        {customers.length > itemsPerPage && (
+                        {/* Pagination */}
+                        {filteredCustomers.length > itemsPerPage && (
                             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
                                 <button
                                     onClick={() => handlePageChange(currentPage - 1)}
@@ -609,12 +612,11 @@ const GestoresAnalysis = ({ data }) => {
                                             : 'text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
                                         }`}
                                 >
-                                    <ChevronLeft size={16} />
-                                    Anterior
+                                    ← Anterior
                                 </button>
 
                                 <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                                    PÃ¡gina <span className="text-slate-900 dark:text-white font-bold">{currentPage}</span> de <span className="font-bold">{totalPages}</span>
+                                    Página <span className="text-slate-900 dark:text-white font-bold">{currentPage}</span> de <span className="font-bold">{totalPages}</span>
                                 </div>
 
                                 <button
@@ -626,8 +628,7 @@ const GestoresAnalysis = ({ data }) => {
                                             : 'text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
                                         }`}
                                 >
-                                    Siguiente
-                                    <ChevronRight size={16} />
+                                    Siguiente →
                                 </button>
                             </div>
                         )}

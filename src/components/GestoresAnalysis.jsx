@@ -46,16 +46,22 @@ const GestoresAnalysis = ({ data }) => {
             const zone = order.gestorZone || 'Sin Zona';
             const gestor = order.gestorName || 'Sin Asignar';
 
+            // Skip 'Sin Asignar' gestores
+            if (gestor === 'Sin Asignar') return;
+
             if (!grouped[zone]) {
                 grouped[zone] = new Set();
             }
             grouped[zone].add(gestor);
         });
 
-        // Convert sets to sorted arrays
+        // Convert sets to sorted arrays and filter out empty zones
         const result = {};
         Object.keys(grouped).sort().forEach(zone => {
-            result[zone] = Array.from(grouped[zone]).sort();
+            const gestores = Array.from(grouped[zone]).sort();
+            if (gestores.length > 0) {
+                result[zone] = gestores;
+            }
         });
 
         return result;

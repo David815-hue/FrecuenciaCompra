@@ -5,6 +5,7 @@ import { getSuggestions } from '../utils/searchSuggestions';
 import MonthVisualizer from './MonthVisualizer';
 import ProductDetailsModal from './ProductDetailsModal';
 import ContributionModal from './ContributionModal';
+import ContributionGraph from './ContributionGraph';
 import RFMAnalysis from './RFMAnalysis';
 import GestoresAnalysis from './GestoresAnalysis';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1013,6 +1014,125 @@ const Dashboard = ({ data, onBack }) => {
                         className="mb-8"
                     >
                         <GestoresAnalysis ref={gestoresRef} data={data} />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Customer History Modal */}
+            <AnimatePresence>
+                {selectedCustomer && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-8 bg-black/40 backdrop-blur-sm overflow-y-auto"
+                        onClick={() => setSelectedCustomer(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden border border-white/20 dark:border-slate-700 flex flex-col my-8"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+                                        Historial Completo de Compras
+                                    </h2>
+                                    <p className="text-slate-600 dark:text-slate-400 font-medium">
+                                        {selectedCustomer.name}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedCustomer(null)}
+                                    className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-all shadow-sm"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)] custom-scrollbar">
+                                {/* Stats Grid */}
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-2">
+                                            <ShoppingBag size={18} />
+                                            <span className="text-xs font-bold uppercase tracking-wider">Total Pedidos</span>
+                                        </div>
+                                        <div className="text-3xl font-bold text-blue-900 dark:text-blue-300">
+                                            {selectedCustomer.orders.length}
+                                        </div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-2">
+                                            <TrendingUp size={18} />
+                                            <span className="text-xs font-bold uppercase tracking-wider">Total Invertido</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-300">
+                                            L. {selectedCustomer.orders.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
+                                        </div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/20 p-4 rounded-xl border border-violet-200 dark:border-violet-800">
+                                        <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 mb-2">
+                                            <BarChart3 size={18} />
+                                            <span className="text-xs font-bold uppercase tracking-wider">Promedio</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-violet-900 dark:text-violet-300">
+                                            L. {(selectedCustomer.orders.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0) / selectedCustomer.orders.length).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Contribution Graph */}
+                                <div className="bg-slate-50 dark:bg-slate-800/30 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 mb-8">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Actividad de Compras</h3>
+                                    </div>
+                                    <ContributionGraph orders={selectedCustomer.orders} />
+                                </div>
+
+                                {/* Orders List */}
+                                <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Historial de Pedidos</h3>
+                                    <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                                        {selectedCustomer.orders.map((order, idx) => (
+                                            <div key={idx} className="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4 border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Hash size={14} className="text-indigo-600 dark:text-indigo-400" />
+                                                        <span className="font-bold text-slate-900 dark:text-white">
+                                                            #{order.orderId || (idx + 1)}
+                                                        </span>
+                                                        <span className="text-xs font-normal px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-full">
+                                                            {format(new Date(order.orderDate), 'dd MMM yyyy', { locale: es })}
+                                                        </span>
+                                                    </div>
+                                                    <div className="font-bold text-emerald-600 dark:text-emerald-400">
+                                                        L. {parseFloat(order.totalAmount || 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
+                                                    </div>
+                                                </div>
+
+                                                {/* Order Items */}
+                                                {order.items && order.items.length > 0 && (
+                                                    <div className="mt-3 space-y-1 border-t border-slate-200 dark:border-slate-700 pt-2">
+                                                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Productos:</div>
+                                                        {order.items.map((item, i) => (
+                                                            <div key={i} className="flex justify-between text-sm text-slate-600 dark:text-slate-300">
+                                                                <span className="truncate pr-4 flex-1">{item.description || item.sku}</span>
+                                                                <span className="font-mono text-xs opacity-70">x{item.quantity}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>

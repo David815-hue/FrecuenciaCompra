@@ -1,5 +1,5 @@
 ﻿import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Users, TrendingUp, DollarSign, ShoppingBag, ShoppingCart, User, Filter, Search, X, Activity, Phone, Mail, MapPin, Calendar, ChevronDown } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, ShoppingBag, ShoppingCart, User, Filter, Search, X, Activity, Phone, Mail, MapPin, Calendar, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -22,6 +22,10 @@ const GestoresAnalysis = ({ data }) => {
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
+
+    // Sort state - default to frequency (number of orders)
+    const [sortBy, setSortBy] = useState('frequency'); // 'total' or 'frequency'
+    const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
 
     // PERF: useCallback to prevent function recreation
     const toggleZone = useCallback((zone) => {
@@ -126,9 +130,25 @@ const GestoresAnalysis = ({ data }) => {
             }
         });
 
-        return Object.values(map).sort((a, b) => b.totalSpent - a.totalSpent);
+        // Convert to array and apply sorting
+        const customers = Object.values(map);
 
-    }, [data, selectedGestor]); // PERF FIX: Removed unnecessary dependencies
+        // Apply sorting based on sortBy and sortDirection
+        if (sortBy === 'total') {
+            customers.sort((a, b) => {
+                const comparison = b.totalSpent - a.totalSpent;
+                return sortDirection === 'desc' ? comparison : -comparison;
+            });
+        } else if (sortBy === 'frequency') {
+            customers.sort((a, b) => {
+                const comparison = b.orders.length - a.orders.length;
+                return sortDirection === 'desc' ? comparison : -comparison;
+            });
+        }
+
+        return customers;
+
+    }, [data, selectedGestor, sortBy, sortDirection]); // Added sortBy and sortDirection
 
     // Calculate metrics
     const metrics = useMemo(() => {
@@ -452,11 +472,37 @@ const GestoresAnalysis = ({ data }) => {
                                     <tr className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
                                         <th className="px-6 py-6 w-80">Cliente</th>
                                         <th className="px-4 py-6 w-48">Identidad</th>
-                                        <th className="px-6 py-6 w-48 text-right">Total</th>
-                                        <th className="px-6 py-6 min-w-[300px]">
+                                        <th
+                                            className="px-6 py-6 w-48 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                            onClick={() => {
+                                                if (sortBy === 'total') {
+                                                    setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+                                                } else {
+                                                    setSortBy('total');
+                                                    setSortDirection('desc');
+                                                }
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                <span>Total</span>
+                                                <ArrowUpDown size={14} className="opacity-60" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="px-6 py-6 min-w-[300px] cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                            onClick={() => {
+                                                if (sortBy === 'frequency') {
+                                                    setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+                                                } else {
+                                                    setSortBy('frequency');
+                                                    setSortDirection('desc');
+                                                }
+                                            }}
+                                        >
                                             <div className="flex items-center gap-2">
                                                 <Calendar size={14} />
                                                 <span>Frecuencia Mensual</span>
+                                                <ArrowUpDown size={14} className="opacity-60" />
                                                 <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
                                                     {dateRange.min.getFullYear()}
                                                 </span>
@@ -557,12 +603,16 @@ const GestoresAnalysis = ({ data }) => {
                                                         <div className="font-mono text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                                                             {customer.identity}
                                                         </div>
-                                                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                                            {customer.orders.length} pedidos con este gestor
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full inline-block w-fit">
+                                                                {customer.orders.length} Pedidos ({selectedGestor})
+                                                            </span>
                                                             {selectedGestor !== 'all' && isShared && (
-                                                                <span className="opacity-70 font-normal"> (+{otherGestoresOrderCount} con otros gestores)</span>
+                                                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                                    +{otherGestoresOrderCount} otros
+                                                                </span>
                                                             )}
-                                                        </span>
+                                                        </div>
                                                     </div>
                                                 </td>
 

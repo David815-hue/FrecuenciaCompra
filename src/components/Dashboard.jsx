@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Users, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart3, TrendingUp, Activity, Package, Hash } from 'lucide-react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Users, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, BarChart3, TrendingUp, Activity, Package, Hash } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import { getSuggestions } from '../utils/searchSuggestions';
 import MonthVisualizer from './MonthVisualizer';
@@ -28,8 +28,8 @@ const Dashboard = ({ data, onBack }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const RECORDS_PER_PAGE = 50;
 
-    // Sort state
-    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+    // Sort state - default to frequency
+    const [sortConfig, setSortConfig] = useState({ key: 'orderCount', direction: 'desc' });
 
     // Search helper tooltip state
     const [showSearchTooltip, setShowSearchTooltip] = useState(false);
@@ -210,8 +210,16 @@ const Dashboard = ({ data, onBack }) => {
         let sortableItems = [...displayList];
         if (sortConfig.key !== null) {
             sortableItems.sort((a, b) => {
-                let aValue = a[sortConfig.key];
-                let bValue = b[sortConfig.key];
+                let aValue, bValue;
+
+                // Special handling for orderCount (number of orders)
+                if (sortConfig.key === 'orderCount') {
+                    aValue = a.orders.length;
+                    bValue = b.orders.length;
+                } else {
+                    aValue = a[sortConfig.key];
+                    bValue = b[sortConfig.key];
+                }
 
                 // Handle non-string values or special cases if needed
                 if (typeof aValue === 'string') aValue = aValue.toLowerCase();
@@ -721,8 +729,10 @@ const Dashboard = ({ data, onBack }) => {
                                             >
                                                 <div className="flex items-center gap-2">
                                                     Cliente
-                                                    {sortConfig.key === 'name' && (
+                                                    {sortConfig.key === 'name' ? (
                                                         sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                                    ) : (
+                                                        <ArrowUpDown size={14} className="opacity-60" />
                                                     )}
                                                 </div>
                                             </th>
@@ -732,8 +742,10 @@ const Dashboard = ({ data, onBack }) => {
                                             >
                                                 <div className="flex items-center gap-2">
                                                     Identidad
-                                                    {sortConfig.key === 'identity' && (
+                                                    {sortConfig.key === 'identity' ? (
                                                         sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                                    ) : (
+                                                        <ArrowUpDown size={14} className="opacity-60" />
                                                     )}
                                                 </div>
                                             </th>
@@ -743,15 +755,25 @@ const Dashboard = ({ data, onBack }) => {
                                             >
                                                 <div className="flex items-center justify-end gap-2">
                                                     Total
-                                                    {sortConfig.key === 'totalInvestment' && (
+                                                    {sortConfig.key === 'totalInvestment' ? (
                                                         sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                                    ) : (
+                                                        <ArrowUpDown size={14} className="opacity-60" />
                                                     )}
                                                 </div>
                                             </th>
-                                            <th className="px-6 py-6 min-w-[300px]">
-                                                <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity cursor-help" title="Mapa de calor de compras mensuales">
+                                            <th
+                                                onClick={() => handleSort('orderCount')}
+                                                className="px-6 py-6 min-w-[300px] cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                            >
+                                                <div className="flex items-center gap-2">
                                                     <Calendar size={14} />
                                                     <span>Frecuencia Mensual</span>
+                                                    {sortConfig.key === 'orderCount' ? (
+                                                        sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-500" /> : <ArrowDown size={14} className="text-indigo-500" />
+                                                    ) : (
+                                                        <ArrowUpDown size={14} className="opacity-60" />
+                                                    )}
                                                     <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
                                                         {dateRange.min.getFullYear()}
                                                     </span>

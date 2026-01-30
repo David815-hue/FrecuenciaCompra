@@ -416,12 +416,15 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
 
             {/* Fullscreen Modal */}
             {fullscreenChart && (
-                <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setFullscreenChart(null)}>
+                <div
+                    className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-start justify-center p-4 pt-8 overflow-y-auto"
+                    onClick={() => setFullscreenChart(null)}
+                >
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
-                        className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-7xl w-full max-h-[90vh] overflow-auto shadow-2xl"
+                        className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-7xl w-full my-8 shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}

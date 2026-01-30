@@ -134,15 +134,10 @@ const GestoresAnalysis = ({ data }) => {
     // Analyze full history to detect shared customers
     // This runs on ALL data, not just filtered orders
     const customerGestorHistory = useMemo(() => {
-        // PERF: Don't calculate calculate if no gestor selected
-        if (selectedGestor === 'all') {
-            return {};
-        }
-
         const history = {};
 
         data.forEach(order => {
-            const key = order.email || order.phone || order.name;
+            const key = order.email || order.phone || order.name || order.customerName;
             if (!key) return;
 
             if (!history[key]) {
@@ -164,7 +159,7 @@ const GestoresAnalysis = ({ data }) => {
         });
 
         return history;
-    }, [data, selectedGestor]); // Added selectedGestor dependency
+    }, [data]); // PERF FIX: Removed selectedGestor dependency - calculate once for all data
 
 
     const [selectedMonthData, setSelectedMonthData] = useState(null);
@@ -585,6 +580,7 @@ const GestoresAnalysis = ({ data }) => {
                                                             fullOrders: data.filter(order =>
                                                                 (order.email && order.email === customer.email) ||
                                                                 (order.phone && order.phone === customer.phone) ||
+                                                                (order.name && order.name === customer.name) ||
                                                                 (order.customerName && order.customerName === customer.name)
                                                             )
                                                         })}
@@ -745,7 +741,7 @@ const GestoresAnalysis = ({ data }) => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+                            className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-8 bg-black/40 backdrop-blur-sm overflow-y-auto"
                             onClick={() => setSelectedCustomerHistory(null)}
                         >
                             <motion.div
@@ -753,7 +749,7 @@ const GestoresAnalysis = ({ data }) => {
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.95, opacity: 0 }}
                                 onClick={(e) => e.stopPropagation()}
-                                className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden border border-white/20 dark:border-slate-700 flex flex-col"
+                                className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden border border-white/20 dark:border-slate-700 flex flex-col my-8"
                             >
                                 {/* Header */}
                                 <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30">

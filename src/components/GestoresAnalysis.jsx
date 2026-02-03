@@ -398,7 +398,7 @@ const GestoresAnalysis = ({ data }) => {
                             {metrics.totalClientes.toLocaleString('es-HN')}
                         </div>
                         <div className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-                            Clientes Ãšnicos
+                            Clientes Unicos
                         </div>
                     </motion.div>
 

@@ -64,10 +64,11 @@ export default async function handler(req, res) {
     try {
         // PUT /api/users/:uid - Update user
         if (req.method === 'PUT') {
-            const { displayName, role } = req.body;
+            const { displayName, role, password } = req.body;
 
             const updates = {};
             if (displayName) updates.displayName = displayName;
+            if (password && password.length >= 6) updates.password = password;
 
             // Update user in Firebase Auth
             await auth.updateUser(uid, updates);

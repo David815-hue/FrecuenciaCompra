@@ -118,10 +118,17 @@ const AdminPanel = () => {
             if (modalMode === 'create') {
                 result = await createUser(formData);
             } else {
-                result = await updateUser(selectedUser.id, {
+                const updates = {
                     displayName: formData.displayName,
                     role: formData.role
-                });
+                };
+                if (formData.password) {
+                    if (formData.password.length < 6) {
+                        throw new Error('La contraseña debe tener al menos 6 caracteres');
+                    }
+                    updates.password = formData.password;
+                }
+                result = await updateUser(selectedUser.id, updates);
             }
 
             if (result.success) {
@@ -365,10 +372,10 @@ const AdminPanel = () => {
                                 </div>
 
                                 {/* Password */}
-                                {modalMode === 'create' && (
+                                {(modalMode === 'create' || modalMode === 'edit') && (
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                            Contraseña
+                                            Contraseña {modalMode === 'edit' && <span className="text-slate-400 font-normal text-xs">(Opcional)</span>}
                                         </label>
                                         <div className="relative">
                                             <input
@@ -377,9 +384,9 @@ const AdminPanel = () => {
                                                 value={formData.password}
                                                 onChange={handleFormChange}
                                                 disabled={formLoading}
-                                                required
+                                                required={modalMode === 'create'}
                                                 className="w-full px-4 py-2.5 pr-10 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                                                placeholder="Mínimo 6 caracteres"
+                                                placeholder={modalMode === 'create' ? "Mínimo 6 caracteres" : "Dejar en blanco para mantener actual"}
                                             />
                                             <button
                                                 type="button"

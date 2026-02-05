@@ -11,7 +11,7 @@ const AdminPanel = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterRole, setFilterRole] = useState('all'); // 'all', 'admin', 'gestora'
+    const [filterRole, setFilterRole] = useState('gestora'); // 'all', 'admin', 'gestora'
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
     const [selectedUser, setSelectedUser] = useState(null);
@@ -221,15 +221,29 @@ const AdminPanel = () => {
                     </div>
 
                     {/* Role Filter */}
-                    <select
-                        value={filterRole}
-                        onChange={(e) => setFilterRole(e.target.value)}
-                        className="px-4 py-2.5 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer"
-                    >
-                        <option value="all">Todos los roles</option>
-                        <option value="admin">Administradores</option>
-                        <option value="gestora">Gestoras</option>
-                    </select>
+                    {/* Role Filter Tabs */}
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                        {[
+                            { id: 'gestora', label: 'Gestores', icon: User },
+                            { id: 'admin', label: 'Administradores', icon: Shield },
+                            { id: 'all', label: 'Todos', icon: Users }
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setFilterRole(tab.id)}
+                                className={`
+                                    flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all
+                                    ${filterRole === tab.id
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                                    }
+                                `}
+                            >
+                                <tab.icon size={16} />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 

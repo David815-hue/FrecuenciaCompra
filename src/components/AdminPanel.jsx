@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, UserPlus, Edit2, Trash2, Search, Shield, User, X,
-    Loader2, CheckCircle, AlertCircle, Eye, EyeOff
+    Loader2, CheckCircle, AlertCircle, Eye, EyeOff, Briefcase
 } from 'lucide-react';
 import { getAllUsers, createUser, updateUser, deleteUser } from '../utils/authUtils';
 import { getGestoresByZona } from '../config/gestores';
@@ -224,7 +224,7 @@ const AdminPanel = () => {
                     {/* Role Filter Tabs */}
                     <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                         {[
-                            { id: 'gestora', label: 'Gestores', icon: User },
+                            { id: 'gestora', label: 'Gestores', icon: Briefcase },
                             { id: 'admin', label: 'Administradores', icon: Shield },
                             { id: 'all', label: 'Todos', icon: Users }
                         ].map((tab) => (
@@ -295,7 +295,7 @@ const AdminPanel = () => {
                                                     </span>
                                                 ) : (
                                                     <span className="flex items-center gap-1">
-                                                        <User size={12} />
+                                                        <Briefcase size={12} />
                                                         Gestora
                                                     </span>
                                                 )}

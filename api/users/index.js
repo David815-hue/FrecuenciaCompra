@@ -3,14 +3,36 @@ import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin (singleton)
 let firebaseApp;
+
+const formatPrivateKey = (key) => {
+    if (!key) return undefined;
+
+    // Remove any surrounding quotes if they exist (common Vercel env var issue)
+    let formattedKey = key.replace(/^['"]|['"]$/g, '');
+
+    // Replace literal \n with actual newlines
+    formattedKey = formattedKey.replace(/\\n/g, '\n');
+
+    return formattedKey;
+};
+
 const getFirebaseApp = () => {
     if (!firebaseApp) {
+        const privateKey = formatPrivateKey(process.env.FIREBASE_PRIVATE_KEY);
+
+        // Debug log (safe)
+        if (!privateKey) {
+            console.error('❌ FIREBASE_PRIVATE_KEY is missing');
+        } else if (!privateKey.includes('BEGIN PRIVATE KEY')) {
+            console.error('❌ FIREBASE_PRIVATE_KEY appears invalid (missing header)');
+        }
+
         firebaseApp = initializeApp({
             credential: cert({
                 type: "service_account",
                 project_id: process.env.FIREBASE_PROJECT_ID,
                 private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-                private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+                private_key: privateKey,
                 client_email: process.env.FIREBASE_CLIENT_EMAIL,
                 client_id: process.env.FIREBASE_CLIENT_ID,
                 auth_uri: "https://accounts.google.com/o/oauth2/auth",

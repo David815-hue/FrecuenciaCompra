@@ -1,17 +1,20 @@
 ﻿import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Users, TrendingUp, DollarSign, ShoppingBag, ShoppingCart, User, Filter, Search, X, Activity, Phone, Mail, MapPin, Calendar, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Users, TrendingUp, DollarSign, ShoppingBag, ShoppingCart, User, Filter, Search, X, Activity, Phone, Mail, MapPin, Calendar, ChevronDown, ArrowUpDown, Lock, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import * as XLSX from 'xlsx'; // Import XLSX for export
 import { getZonas, getGestoresByZona } from '../config/gestores';
 import MonthVisualizer from './MonthVisualizer';
 import ContributionGraph from './ContributionGraph';
 
-const GestoresAnalysis = ({ data }) => {
+const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null }) => {
     const [selectedMonthData, setSelectedMonthData] = useState(null);
 
+    // Initialize with restricted user filter if applicable
     const [selectedZone, setSelectedZone] = useState('all');
-    const [selectedGestor, setSelectedGestor] = useState('all');
+    const [selectedGestor, setSelectedGestor] = useState(isRestricted && restrictedUser ? restrictedUser : 'all');
 
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [expandedZones, setExpandedZones] = useState({});
@@ -27,6 +30,21 @@ const GestoresAnalysis = ({ data }) => {
     const [sortBy, setSortBy] = useState('frequency'); // 'total' or 'frequency'
     const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
 
+    // Force strict filtering for restricted users
+    useEffect(() => {
+        if (isRestricted && restrictedUser) {
+            // Find the zone for this gestor
+            const allZones = getZonas(); // Assuming this returns objects or strings
+            // We need to scan data or config to find the zone. 
+            // Using data is safer as config might be outdated, but let's try to infer from data first.
+            const userOrder = data.find(o => o.gestorName === restrictedUser);
+            if (userOrder && userOrder.gestorZone) {
+                setSelectedZone(userOrder.gestorZone);
+            }
+            setSelectedGestor(restrictedUser);
+        }
+    }, [isRestricted, restrictedUser, data]);
+
     // PERF: useCallback to prevent function recreation
     const toggleZone = useCallback((zone) => {
         setExpandedZones(prev => ({
@@ -36,11 +54,12 @@ const GestoresAnalysis = ({ data }) => {
     }, []);
 
     const handleGestorSelect = useCallback((zone, gestor) => {
+        if (isRestricted) return; // Prevent selection if restricted
         setSelectedZone(zone);
         setSelectedGestor(gestor);
         setIsFilterOpen(false);
         setSearchTerm('');
-    }, []);
+    }, [isRestricted]);
 
     // Group gestores by zone
     const gestoresByZone = useMemo(() => {
@@ -255,31 +274,75 @@ const GestoresAnalysis = ({ data }) => {
         });
     };
 
+    // Export Handler
+    const handleExport = () => {
+        if (!filteredCustomers.length) return;
+
+        // Flatten data for export
+        const exportData = filteredCustomers.map(c => ({
+            'Cliente': c.name,
+            'Identidad': c.identity,
+            'Email': c.email,
+            'Teléfono': c.phone,
+            'Ciudad': c.city,
+            'Total Frecuencia': c.orders.length,
+            'Total Comprado (L)': c.totalSpent,
+            'Última Compra': c.lastPurchase ? format(new Date(c.lastPurchase), 'dd/MM/yyyy') : '-'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Reporte Gestores");
+
+        // Generate filename with timestamp
+        const timestamp = format(new Date(), 'yyyyMMdd_HHmm');
+        const filename = `Reporte_${selectedGestor === 'all' ? 'General' : selectedGestor}_${timestamp}.xlsx`;
+
+        XLSX.writeFile(wb, filename);
+    };
+
     return (
         <div className="space-y-6">
             {/* Top Filter Bar */}
-            <div className="relative z-40">
+            <div className="relative z-40 flex flex-wrap items-center gap-4">
                 <button
-                    onClick={() => setIsFilterOpen(!isFilterOpen)}
+                    onClick={() => !isRestricted && setIsFilterOpen(!isFilterOpen)}
+                    disabled={isRestricted}
                     className={`flex items-center gap-3 px-5 py-3 rounded-xl border transition-all ${isFilterOpen
                         ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-500/20 shadow-lg'
-                        : 'bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl border-white/30 dark:border-slate-700/50 hover:bg-white/60 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200'
+                        : isRestricted
+                            ? 'bg-slate-100 dark:bg-slate-800/50 border-transparent cursor-not-allowed opacity-80'
+                            : 'bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl border-white/30 dark:border-slate-700/50 hover:bg-white/60 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200'
                         }`}
                 >
-                    <Filter size={18} />
+                    {isRestricted ? <Lock size={18} className="text-amber-500" /> : <Filter size={18} />}
                     <div className="flex flex-col items-start text-xs">
-                        <span className="opacity-70 font-medium uppercase tracking-wider">Filtro Activo</span>
+                        <span className="opacity-70 font-medium uppercase tracking-wider">
+                            {isRestricted ? 'Vista Restringida' : 'Filtro Activo'}
+                        </span>
                         <div className="flex items-center gap-1.5 font-bold text-sm">
                             {selectedGestor !== 'all' ? (
-                                <><User size={14} className="text-indigo-200" /> {selectedGestor}</>
+                                <><User size={14} className="text-indigo-400" /> {selectedGestor}</>
                             ) : selectedZone !== 'all' ? (
-                                <><MapPin size={14} className="text-indigo-200" /> Zona {selectedZone}</>
+                                <><MapPin size={14} className="text-indigo-400" /> Zona {selectedZone}</>
                             ) : (
-                                <><User size={14} className="text-indigo-200" /> Seleccione gestor</>
+                                <><User size={14} className="text-indigo-400" /> Seleccione gestor</>
                             )}
                         </div>
                     </div>
+                    {!isRestricted && <ChevronDown size={14} className={`ml-2 opacity-50 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />}
                 </button>
+
+                {/* Export Button */}
+                {filteredCustomers.length > 0 && (
+                    <button
+                        onClick={handleExport}
+                        className="flex items-center gap-2 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg hover:shadow-emerald-500/20 transition-all font-semibold text-sm ml-auto"
+                    >
+                        <Download size={18} />
+                        <span>Exportar Excel</span>
+                    </button>
+                )}
 
                 {/* Dropdown Menu */}
                 <AnimatePresence>
@@ -792,159 +855,163 @@ const GestoresAnalysis = ({ data }) => {
                 </AnimatePresence>
 
                 {/* Full Purchase History Modal */}
-                <AnimatePresence>
-                    {selectedCustomerHistory && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-8 bg-black/40 backdrop-blur-sm overflow-y-auto"
-                            onClick={() => setSelectedCustomerHistory(null)}
-                        >
+                {/* Full Purchase History Modal */}
+                {createPortal(
+                    <AnimatePresence>
+                        {selectedCustomerHistory && (
                             <motion.div
-                                initial={{ scale: 0.95, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.95, opacity: 0 }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden border border-white/20 dark:border-slate-700 flex flex-col my-8"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[9999] flex items-start justify-center p-4 pt-8 bg-black/40 backdrop-blur-sm overflow-y-auto"
+                                onClick={() => setSelectedCustomerHistory(null)}
                             >
-                                {/* Header */}
-                                <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30">
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
-                                            Historial Completo de Compras
-                                        </h2>
-                                        <p className="text-slate-600 dark:text-slate-400 font-medium">
-                                            {selectedCustomerHistory.customer.name}
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => setSelectedCustomerHistory(null)}
-                                        className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-all shadow-sm"
-                                    >
-                                        <ChevronDown size={20} className="rotate-180" />
-                                    </button>
-                                </div>
-
-                                {/* Content */}
-                                <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)] custom-scrollbar">
-                                    {/* Stats Grid */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-                                            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-2">
-                                                <ShoppingCart size={18} />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Total Pedidos</span>
-                                            </div>
-                                            <div className="text-3xl font-bold text-blue-900 dark:text-blue-300">
-                                                {selectedCustomerHistory.fullOrders.length}
-                                            </div>
+                                <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.95, opacity: 0 }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden border border-white/20 dark:border-slate-700 flex flex-col my-8"
+                                >
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30">
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+                                                Historial Completo de Compras
+                                            </h2>
+                                            <p className="text-slate-600 dark:text-slate-400 font-medium">
+                                                {selectedCustomerHistory.customer.name}
+                                            </p>
                                         </div>
-                                        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800">
-                                            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-2">
-                                                <DollarSign size={18} />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Total Invertido</span>
-                                            </div>
-                                            <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-300">
-                                                L. {selectedCustomerHistory.fullOrders.reduce((s, o) => s + parseFloat(o.totalAmount || 0), 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
-                                            </div>
-                                        </div>
-                                        <div className="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/20 p-4 rounded-xl border border-violet-200 dark:border-violet-800">
-                                            <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 mb-2">
-                                                <Users size={18} />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Gestores</span>
-                                            </div>
-                                            <div className="text-3xl font-bold text-violet-900 dark:text-violet-300">
-                                                {selectedCustomerHistory.allHistory.totalGestores}
-                                            </div>
-                                        </div>
-                                        <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/30 dark:to-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-                                            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-2">
-                                                <User size={18} />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Con {selectedGestor}</span>
-                                            </div>
-                                            <div className="text-3xl font-bold text-amber-900 dark:text-amber-300">
-                                                {selectedCustomerHistory.customer.orders.length}
-                                            </div>
-                                        </div>
+                                        <button
+                                            onClick={() => setSelectedCustomerHistory(null)}
+                                            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-all shadow-sm"
+                                        >
+                                            <ChevronDown size={20} className="rotate-180" />
+                                        </button>
                                     </div>
 
-                                    {/* Contribution Graph */}
-                                    <div className="bg-slate-50 dark:bg-slate-800/30 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 mb-8">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Actividad de Compras</h3>
+                                    {/* Content */}
+                                    <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)] custom-scrollbar">
+                                        {/* Stats Grid */}
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                                                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-2">
+                                                    <ShoppingCart size={18} />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Total Pedidos</span>
+                                                </div>
+                                                <div className="text-3xl font-bold text-blue-900 dark:text-blue-300">
+                                                    {selectedCustomerHistory.fullOrders.length}
+                                                </div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                                                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-2">
+                                                    <DollarSign size={18} />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Total Invertido</span>
+                                                </div>
+                                                <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-300">
+                                                    L. {selectedCustomerHistory.fullOrders.reduce((s, o) => s + parseFloat(o.totalAmount || 0), 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
+                                                </div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/20 p-4 rounded-xl border border-violet-200 dark:border-violet-800">
+                                                <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 mb-2">
+                                                    <Users size={18} />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Gestores</span>
+                                                </div>
+                                                <div className="text-3xl font-bold text-violet-900 dark:text-violet-300">
+                                                    {selectedCustomerHistory.allHistory.totalGestores}
+                                                </div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/30 dark:to-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
+                                                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-2">
+                                                    <User size={18} />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Con {selectedGestor}</span>
+                                                </div>
+                                                <div className="text-3xl font-bold text-amber-900 dark:text-amber-300">
+                                                    {selectedCustomerHistory.customer.orders.length}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <ContributionGraph orders={selectedCustomerHistory.fullOrders} />
-                                    </div>
 
-                                    {/* Gestor Breakdown */}
-                                    <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 mb-6">
-                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Desglose por Gestor</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {Object.entries(selectedCustomerHistory.allHistory.gestores).sort((a, b) => b[1] - a[1]).map(([gestor, count]) => {
-                                                const isCurrentGestor = gestor === selectedGestor;
-                                                const total = selectedCustomerHistory.fullOrders.filter(o => o.gestorName === gestor).reduce((s, o) => s + parseFloat(o.totalAmount || 0), 0);
-                                                return (
-                                                    <div key={gestor} className={`p-4 rounded-lg border-2 transition-all ${isCurrentGestor ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700' : 'bg-slate-50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700'}`}>
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <User size={16} className={isCurrentGestor ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'} />
-                                                                <span className={`font-bold ${isCurrentGestor ? 'text-indigo-900 dark:text-indigo-300' : 'text-slate-900 dark:text-slate-300'}`}>{gestor}</span>
-                                                                {isCurrentGestor && <span className="text-xs px-2 py-0.5 bg-indigo-500 text-white rounded-full font-semibold">Actual</span>}
-                                                            </div>
-                                                            <span className={`text-2xl font-bold ${isCurrentGestor ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}`}>{count}</span>
-                                                        </div>
-                                                        <div className="text-sm text-slate-600 dark:text-slate-400">Total: <span className="font-bold text-emerald-600 dark:text-emerald-400">L. {total.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span></div>
-                                                    </div>
-                                                );
-                                            })}
+                                        {/* Contribution Graph */}
+                                        <div className="bg-slate-50 dark:bg-slate-800/30 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 mb-8">
+                                            <div className="flex items-center justify-between mb-6">
+                                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Actividad de Compras</h3>
+                                            </div>
+                                            <ContributionGraph orders={selectedCustomerHistory.fullOrders} />
                                         </div>
-                                    </div>
 
-                                    {/* Recent Orders */}
-                                    <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700">
-                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Ãšltimos 10 Pedidos</h3>
-                                        <div className="space-y-3">
-                                            {selectedCustomerHistory.fullOrders
-                                                .sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
-                                                .slice(0, 10)
-                                                .map((order, idx) => {
-                                                    const orderGestor = order.gestorName || 'Sin Asignar';
-                                                    const isCurrentGestor = orderGestor === selectedGestor;
-
+                                        {/* Gestor Breakdown */}
+                                        <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 mb-6">
+                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Desglose por Gestor</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {Object.entries(selectedCustomerHistory.allHistory.gestores).sort((a, b) => b[1] - a[1]).map(([gestor, count]) => {
+                                                    const isCurrentGestor = gestor === selectedGestor;
+                                                    const total = selectedCustomerHistory.fullOrders.filter(o => o.gestorName === gestor).reduce((s, o) => s + parseFloat(o.totalAmount || 0), 0);
                                                     return (
-                                                        <div
-                                                            key={idx}
-                                                            className={`p-4 rounded-lg border transition-all ${isCurrentGestor ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800' : 'bg-slate-50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-700'}`}
-                                                        >
-                                                            <div className="flex justify-between items-center">
-                                                                <div className="flex items-center gap-3">
-                                                                    <span className="font-bold text-slate-900 dark:text-white">
-                                                                        #{order.orderId}
-                                                                    </span>
-                                                                    <span className="text-xs px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full text-slate-600 dark:text-slate-300">
-                                                                        {format(new Date(order.orderDate), 'dd MMM yyyy', { locale: es })}
-                                                                    </span>
-                                                                    <div className="flex items-center gap-1.5 text-xs">
-                                                                        <User size={12} className="text-slate-400" />
-                                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                                                                            {orderGestor}
-                                                                        </span>
-                                                                    </div>
+                                                        <div key={gestor} className={`p-4 rounded-lg border-2 transition-all ${isCurrentGestor ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700' : 'bg-slate-50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700'}`}>
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <User size={16} className={isCurrentGestor ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'} />
+                                                                    <span className={`font-bold ${isCurrentGestor ? 'text-indigo-900 dark:text-indigo-300' : 'text-slate-900 dark:text-slate-300'}`}>{gestor}</span>
+                                                                    {isCurrentGestor && <span className="text-xs px-2 py-0.5 bg-indigo-500 text-white rounded-full font-semibold">Actual</span>}
                                                                 </div>
-                                                                <div className="font-bold text-emerald-600 dark:text-emerald-400">
-                                                                    L. {parseFloat(order.totalAmount).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
-                                                                </div>
+                                                                <span className={`text-2xl font-bold ${isCurrentGestor ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}`}>{count}</span>
                                                             </div>
+                                                            <div className="text-sm text-slate-600 dark:text-slate-400">Total: <span className="font-bold text-emerald-600 dark:text-emerald-400">L. {total.toLocaleString('es-HN', { minimumFractionDigits: 2 })}</span></div>
                                                         </div>
                                                     );
                                                 })}
+                                            </div>
+                                        </div>
+
+                                        {/* Recent Orders */}
+                                        <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Últimos 10 Pedidos</h3>
+                                            <div className="space-y-3">
+                                                {selectedCustomerHistory.fullOrders
+                                                    .sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
+                                                    .slice(0, 10)
+                                                    .map((order, idx) => {
+                                                        const orderGestor = order.gestorName || 'Sin Asignar';
+                                                        const isCurrentGestor = orderGestor === selectedGestor;
+
+                                                        return (
+                                                            <div
+                                                                key={idx}
+                                                                className={`p-4 rounded-lg border transition-all ${isCurrentGestor ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800' : 'bg-slate-50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-700'}`}
+                                                            >
+                                                                <div className="flex justify-between items-center">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="font-bold text-slate-900 dark:text-white">
+                                                                            #{order.orderId}
+                                                                        </span>
+                                                                        <span className="text-xs px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full text-slate-600 dark:text-slate-300">
+                                                                            {format(new Date(order.orderDate), 'dd MMM yyyy', { locale: es })}
+                                                                        </span>
+                                                                        <div className="flex items-center gap-1.5 text-xs">
+                                                                            <User size={12} className="text-slate-400" />
+                                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                                                {orderGestor}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="font-bold text-emerald-600 dark:text-emerald-400">
+                                                                        L. {parseFloat(order.totalAmount).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                </motion.div>
                             </motion.div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                        )}
+                    </AnimatePresence>,
+                    document.body
+                )}
 
             </div>
         </div>

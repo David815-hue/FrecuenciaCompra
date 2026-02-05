@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const Dashboard = ({ data, onBack }) => {
+const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = false }) => {
     const [query, setQuery] = useState('');
     const [onlyRecurring, setOnlyRecurring] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(null);
@@ -82,7 +82,6 @@ const Dashboard = ({ data, onBack }) => {
         setShowSuggestions(false);
     };
 
-    // Helper to handle sort clicks
     const handleSort = (key) => {
         let direction = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -90,6 +89,13 @@ const Dashboard = ({ data, onBack }) => {
         }
         setSortConfig({ key, direction });
     };
+
+    // Auto-set view to 'gestores' for restricted users
+    useEffect(() => {
+        if (isRestricted && viewMode !== 'gestores') {
+            setViewMode('gestores');
+        }
+    }, [isRestricted]);
 
     // 1. Filter Data (Search)
     const filteredData = useMemo(() => {
@@ -322,15 +328,18 @@ const Dashboard = ({ data, onBack }) => {
             <header className="flex flex-col gap-8 relative z-50">
                 {/* Top Navigation Bar */}
                 <div className="flex justify-between items-center bg-white/30 dark:bg-slate-900/30 backdrop-blur-2xl px-8 py-4 rounded-3xl border border-white/40 dark:border-slate-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] transition-all duration-300">
-                    <button
-                        onClick={onBack}
-                        className="group flex items-center gap-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all font-medium text-sm"
-                    >
-                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 transition-colors">
-                            <ArrowLeft size={16} />
-                        </div>
-                        <span>Volver al inicio</span>
-                    </button>
+                    {onBack && !isRestricted && (
+                        <button
+                            onClick={onBack}
+                            className="group flex items-center gap-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all font-medium text-sm"
+                        >
+                            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-indigo-50 dark:group-hover:bg-indigo-500/10 transition-colors">
+                                <ArrowLeft size={16} />
+                            </div>
+                            <span>Volver al inicio</span>
+                        </button>
+                    )}
+                    {isRestricted && <div />} {/* Spacer for restricted users */}
 
                     <button
                         onClick={handleExport}
@@ -603,7 +612,7 @@ const Dashboard = ({ data, onBack }) => {
                         <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl relative z-0">
                             {[
                                 { id: 'table', label: 'Tabla', icon: BarChart3 },
-                                { id: 'rfm', label: 'Análisis RFM', icon: TrendingUp },
+                                ...(isRestricted ? [] : [{ id: 'rfm', label: 'Análisis RFM', icon: TrendingUp }]),
                                 { id: 'gestores', label: 'Gestores', icon: Users }
                             ].map((tab) => (
                                 <button
@@ -1035,7 +1044,12 @@ const Dashboard = ({ data, onBack }) => {
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                         className="mb-8"
                     >
-                        <GestoresAnalysis ref={gestoresRef} data={data} />
+                        <GestoresAnalysis
+                            ref={gestoresRef}
+                            data={data}
+                            isRestricted={isRestricted}
+                            restrictedUser={isRestricted ? userName : null}
+                        />
                     </motion.div>
                 )}
             </AnimatePresence>

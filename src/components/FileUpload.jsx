@@ -1,14 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle, X, ArrowRight, Zap, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getLatestOrderDate } from '../utils/firestoreUtils';
 
-const FileUpload = ({ onFilesUploaded }) => {
+const FileUpload = ({ onFilesUploaded, currentUser }) => {
     const [albatrossFile, setAlbatrossFile] = useState(null);
     const [rmsFile, setRmsFile] = useState(null);
     const [isIncremental, setIsIncremental] = useState(false);
     const [latestDate, setLatestDate] = useState(null);
     const [loadingDate, setLoadingDate] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const [message, setMessage] = useState(null);
+    const [dragActive, setDragActive] = useState(false);
+    const fileInputRef = useRef(null);
+    const [showResetConfirm, setShowResetConfirm] = useState(false); // For database reset
+
+    const isSuperAdmin = currentUser?.username === 'adminpf';
+
+    if (!isSuperAdmin) {
+        return (
+            <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-white/50 dark:border-slate-800 rounded-2xl p-8 shadow-lg text-center">
+                <div className="flex flex-col items-center justify-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                        <Upload size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                            Carga de Datos Restringida
+                        </h3>
+                        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                            Solo el Super Administrador (@adminpf) tiene permisos para cargar nuevos archivos o reiniciar la base de datos.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // Load latest date on mount
     useEffect(() => {

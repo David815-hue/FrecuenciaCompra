@@ -403,7 +403,10 @@ function App() {
                   </p>
                 </div>
               ) : (
-                <FileUpload onFilesUploaded={handleFilesUploaded} />
+                <FileUpload
+                  onFilesUploaded={handleFilesUploaded}
+                  currentUser={authState.profile}
+                />
               )}
             </motion.div>
           ) : (

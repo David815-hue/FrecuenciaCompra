@@ -1,15 +1,45 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 
-// Initialize Firebase Admin (Singleton pattern for Vercel)
-if (!getApps().length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    initializeApp({
-        credential: cert(serviceAccount)
-    });
-}
+// Initialize Firebase Admin (singleton)
+let firebaseApp;
 
-const auth = getAuth();
+const formatPrivateKey = (key) => {
+    if (!key) return undefined;
+    // Remove any surrounding quotes if they exist (common Vercel env var issue)
+    let formattedKey = key.replace(/^['"]|['"]$/g, '');
+    // Replace literal \n with actual newlines
+    formattedKey = formattedKey.replace(/\\n/g, '\n');
+    return formattedKey;
+};
+
+const getFirebaseApp = () => {
+    if (!firebaseApp) {
+        const privateKey = formatPrivateKey(process.env.FIREBASE_PRIVATE_KEY);
+
+        if (!privateKey) {
+            console.error('❌ FIREBASE_PRIVATE_KEY is missing');
+        }
+
+        firebaseApp = initializeApp({
+            credential: cert({
+                type: "service_account",
+                project_id: process.env.FIREBASE_PROJECT_ID,
+                private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+                private_key: privateKey,
+                client_email: process.env.FIREBASE_CLIENT_EMAIL,
+                client_id: process.env.FIREBASE_CLIENT_ID,
+                auth_uri: "https://accounts.google.com/o/oauth2/auth",
+                token_uri: "https://oauth2.googleapis.com/token",
+                auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+                client_x509_cert_url: process.env.FIREBASE_CERT_URL
+            })
+        });
+    }
+    return firebaseApp;
+};
+
+const auth = getAuth(getFirebaseApp());
 
 export default async function handler(req, res) {
     // Enable CORS

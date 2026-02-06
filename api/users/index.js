@@ -120,7 +120,8 @@ export default async function handler(req, res) {
             // Set custom claims
             await auth.setCustomUserClaims(userRecord.uid, {
                 role,
-                username: username.toLowerCase().trim()
+                username: username.toLowerCase().trim(),
+                mustChangePassword: true // New users must change password
             });
 
             return res.status(200).json({

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { format, eachMonthOfInterval, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     const [hoveredMonth, setHoveredMonth] = useState(null);
     const [shakingMonth, setShakingMonth] = useState(null);
+    const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
 
     const timeline = eachMonthOfInterval({
         start: startOfMonth(minDate || new Date()),
@@ -67,6 +69,15 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
         }
     };
 
+    const handleMouseEnter = (e, key) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setTooltipPos({
+            left: rect.left + rect.width / 2,
+            top: rect.top
+        });
+        setHoveredMonth(key);
+    };
+
     return (
         <div className="flex w-full min-w-[200px] border border-slate-200/60 dark:border-slate-700/60 rounded-xl divide-x divide-slate-100 dark:divide-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm transition-colors duration-300">
             {timeline.map((dateObj, idx) => {
@@ -93,7 +104,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                         `}
                         animate={isShaking ? { x: [0, -4, 4, -4, 4, 0] } : {}}
                         transition={{ duration: 0.4 }}
-                        onMouseEnter={() => setHoveredMonth(key)}
+                        onMouseEnter={(e) => handleMouseEnter(e, key)}
                         onMouseLeave={() => setHoveredMonth(null)}
                         onClick={() => handleMonthClick(key, data)}
                     >
@@ -107,9 +118,16 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                             <div className="absolute -left-[1px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-400 dark:from-indigo-500 dark:via-indigo-400 dark:to-indigo-500 z-30" />
                         )}
 
-                        {/* Glassmorphism Tooltip */}
-                        {count > 0 && isHovered && data && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 min-w-[220px] p-4 bg-white/20 dark:bg-slate-900/60 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 rounded-2xl shadow-xl z-[100] pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                        {/* Glassmorphism Tooltip - PORTAL */}
+                        {count > 0 && isHovered && data && createPortal(
+                            <div
+                                className="fixed mb-3 min-w-[220px] p-4 bg-white/20 dark:bg-slate-900/60 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 rounded-2xl shadow-xl z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-200"
+                                style={{
+                                    left: tooltipPos.left,
+                                    top: tooltipPos.top,
+                                    transform: 'translate(-50%, -100%) translateY(-12px)'
+                                }}
+                            >
                                 <div className="flex flex-col items-center text-center gap-1">
                                     <span className="text-sm font-bold capitalize text-slate-900 dark:text-white drop-shadow-sm">
                                         {format(dateObj, 'MMMM yyyy', { locale: es })}
@@ -151,12 +169,13 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
 
                                 {/* Arrow */}
                                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white/20 dark:bg-slate-900/60 backdrop-blur-xl border-r border-b border-white/30 dark:border-slate-700/50 rotate-45 transform"></div>
-                            </div>
+                            </div>,
+                            document.body
                         )}
                     </motion.div>
                 );
             })}
-        </div>
+        </div >
     );
 };
 

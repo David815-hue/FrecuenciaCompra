@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, TrendingUp, ShoppingBag, DollarSign, Calendar, Package, Layers, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ContributionGraph from './ContributionGraph';
@@ -147,10 +148,10 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
 
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -332,7 +333,8 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                     </motion.div>
                 </div>
             )}
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 };
 

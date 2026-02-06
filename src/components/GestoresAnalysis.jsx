@@ -288,7 +288,9 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
             'Total Frecuencia': c.orders.length,
             'Total Comprado (L)': c.totalSpent,
             'Última Compra': c.lastPurchase ? format(new Date(c.lastPurchase), 'dd/MM/yyyy') : '-',
-            'Productos Comprados': [...new Set(c.orders.flatMap(o => o.productName ? [o.productName] : []))].join(', ')
+            'Total Comprado (L)': c.totalSpent,
+            'Última Compra': c.lastPurchase ? format(new Date(c.lastPurchase), 'dd/MM/yyyy') : '-',
+            'Productos Comprados': [...new Set(c.orders.flatMap(o => (o.items || []).map(i => i.description || i.sku)))].join(', ')
         }));
 
         const ws = XLSX.utils.json_to_sheet(exportData);

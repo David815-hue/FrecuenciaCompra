@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { LogIn, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { loginWithUsername } from '../utils/authUtils';
 
@@ -12,6 +12,7 @@ const Login = ({ onLoginSuccess }) => {
     // Removed rememberMe state as we switched to sessionStorage for stability
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showForgotMessage, setShowForgotMessage] = useState(false);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -140,6 +141,29 @@ const Login = ({ onLoginSuccess }) => {
                                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                 </button>
                             </div>
+                            <div className="flex justify-end mt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowForgotMessage(!showForgotMessage)}
+                                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+                                >
+                                    ¿Olvidaste tu contraseña?
+                                </button>
+                            </div>
+
+                            {/* Forgot Password Message */}
+                            <AnimatePresence>
+                                {showForgotMessage && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="mt-2 text-xs text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/50"
+                                    >
+                                        Comuníquese con el administrador (David) para que le cambie la contraseña.
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         {/* Submit Button */}

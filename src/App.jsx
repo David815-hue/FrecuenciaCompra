@@ -3,6 +3,7 @@ import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
+import ForcePasswordChange from './components/ForcePasswordChange';
 import ThemeToggle from './components/ThemeToggle';
 import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets, filterDataByDate } from './utils/dataProcessing';
@@ -237,6 +238,18 @@ function App() {
     return <Login />;
   }
 
+  if (authState.profile.mustChangePassword) {
+    return (
+      <ForcePasswordChange
+        user={authState.user}
+        onPasswordChanged={() => {
+          // Force reload user to get updated claims
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
   const isAdmin = authState.profile.role === 'admin';
   const isGestora = authState.profile.role === 'gestora';
 
@@ -372,7 +385,7 @@ function App() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <AdminPanel />
+              <AdminPanel currentUser={authState.profile} />
             </motion.div>
           ) : !data ? (
             <motion.div

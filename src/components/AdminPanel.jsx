@@ -7,7 +7,7 @@ import {
 import { getAllUsers, createUser, updateUser, deleteUser } from '../utils/authUtils';
 import { getGestoresByZona } from '../config/gestores';
 
-const AdminPanel = () => {
+const AdminPanel = ({ currentUser }) => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -147,6 +147,14 @@ const AdminPanel = () => {
     };
 
     const handleDelete = async (user) => {
+        const isSuperAdmin = currentUser?.username === 'adminpf';
+
+        // Security check: Only Super Admin can delete other Admins
+        if (user.role === 'admin' && !isSuperAdmin) {
+            alert('Solo el Super Administrador (@adminpf) puede eliminar a otros administradores.');
+            return;
+        }
+
         const adminCount = users.filter(u => u.role === 'admin').length;
 
         if (user.role === 'admin' && adminCount <= 1) {
@@ -319,13 +327,37 @@ const AdminPanel = () => {
                                     >
                                         <Edit2 size={18} />
                                     </button>
-                                    <button
-                                        onClick={() => handleDelete(user)}
-                                        className="p-2 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
-                                        title="Eliminar usuario"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
+
+                                    {/* Delete Button Logic */}
+                                    {(() => {
+                                        const isSuperAdmin = currentUser?.username === 'adminpf';
+                                        const isSelf = currentUser?.username === user.username;
+                                        const targetIsAdmin = user.role === 'admin';
+
+                                        // Super Admin can delete anyone (except self)
+                                        // Regular Admin can ONLY delete Gestores
+                                        const canDelete = !isSelf && (isSuperAdmin || !targetIsAdmin);
+
+                                        if (canDelete) {
+                                            return (
+                                                <button
+                                                    onClick={() => handleDelete(user)}
+                                                    className="p-2 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
+                                                    title="Eliminar usuario"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            );
+                                        } else if (targetIsAdmin && !isSuperAdmin) {
+                                            // Optional: Show locked icon for non-super admins viewing other admins
+                                            return (
+                                                <div className="p-2 text-slate-300 dark:text-slate-600 cursor-not-allowed" title="Solo Super Admin puede eliminar administradores">
+                                                    <Shield size={18} />
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             </div>
                         </motion.div>

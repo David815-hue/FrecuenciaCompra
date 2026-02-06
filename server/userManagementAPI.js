@@ -92,7 +92,8 @@ app.post('/api/users', async (req, res) => {
         // Set custom claims
         await auth.setCustomUserClaims(userRecord.uid, {
             role,
-            username: username.toLowerCase().trim()
+            username: username.toLowerCase().trim(),
+            mustChangePassword: true // New users must change password
         });
 
         res.json({
@@ -101,7 +102,8 @@ app.post('/api/users', async (req, res) => {
                 uid: userRecord.uid,
                 username: username.toLowerCase().trim(),
                 displayName,
-                role
+                role,
+                mustChangePassword: true
             }
         });
     } catch (error) {
@@ -115,6 +117,57 @@ app.post('/api/users', async (req, res) => {
         }
 
         res.status(500).json({ success: false, error: errorMessage });
+    }
+});
+
+/**
+ * POST /api/change-password - Change user password
+ * Body: { uid, newPassword }
+ */
+app.post('/api/change-password', async (req, res) => {
+    try {
+        const { uid, newPassword } = req.body;
+
+        if (!uid || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'Faltan datos requeridos'
+            });
+        }
+
+        // Easter Egg & Validation
+        if (newPassword === '123456' || newPassword === '12345678' || newPassword === '123456789') {
+            return res.status(400).json({
+                success: false,
+                error: 'No ponga esa contraseña es muy facil'
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                error: 'La contraseña debe tener al menos 6 caracteres'
+            });
+        }
+
+        // Update password in Firebase
+        await auth.updateUser(uid, {
+            password: newPassword
+        });
+
+        // Remove mustChangePassword claim
+        const user = await auth.getUser(uid);
+        const currentClaims = user.customClaims || {};
+
+        const newClaims = { ...currentClaims };
+        delete newClaims.mustChangePassword;
+
+        await auth.setCustomUserClaims(uid, newClaims);
+
+        res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+    } catch (error) {
+        console.error('Error changing password:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 

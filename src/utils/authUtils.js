@@ -35,15 +35,17 @@ export const loginWithUsername = async (username, password) => {
         // Get custom claims for role
         const idTokenResult = await firebaseUser.getIdTokenResult();
         const role = idTokenResult.claims.role || 'gestora';
+        const mustChangePassword = idTokenResult.claims.mustChangePassword || false;
 
-        console.log('🔐 LOGIN: Success!', { role });
+        console.log('🔐 LOGIN: Success!', { role, mustChangePassword });
         return {
             success: true,
             user: firebaseUser,
             profile: {
                 username: username.toLowerCase().trim(),
                 displayName: firebaseUser.displayName || username,
-                role: role
+                role: role,
+                mustChangePassword: mustChangePassword
             }
         };
     } catch (error) {
@@ -92,16 +94,18 @@ export const getCurrentUser = async () => {
         }
 
         // Get custom claims
-        const idTokenResult = await firebaseUser.getIdTokenResult();
+        const idTokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh
         const role = idTokenResult.claims.role || 'gestora';
         const username = idTokenResult.claims.username || firebaseUser.email?.split('@')[0] || '';
+        const mustChangePassword = idTokenResult.claims.mustChangePassword || false;
 
         return {
             user: firebaseUser,
             profile: {
                 username: username,
                 displayName: firebaseUser.displayName || username,
-                role: role
+                role: role,
+                mustChangePassword: mustChangePassword
             }
         };
     } catch (error) {
@@ -122,16 +126,18 @@ export const onAuthStateChange = (callback) => {
         }
 
         // Get custom claims
-        const idTokenResult = await firebaseUser.getIdTokenResult();
+        const idTokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh
         const role = idTokenResult.claims.role || 'gestora';
         const username = idTokenResult.claims.username || firebaseUser.email?.split('@')[0] || '';
+        const mustChangePassword = idTokenResult.claims.mustChangePassword || false;
 
         callback({
             user: firebaseUser,
             profile: {
                 username: username,
                 displayName: firebaseUser.displayName || username,
-                role: role
+                role: role,
+                mustChangePassword: mustChangePassword
             }
         });
     });
@@ -144,6 +150,35 @@ export const onAuthStateChange = (callback) => {
 const API_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost'
     ? 'http://localhost:3001/api'  // Local development
     : '/api';  // Production (Vercel)
+
+/**
+ * Change password (User specific)
+ * @param {string} uid - User UID
+ * @param {string} newPassword - New password
+ */
+export const changePassword = async (uid, newPassword) => {
+    try {
+        const response = await fetch(`${API_URL}/change-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid, newPassword })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            return { success: false, error: data.error };
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('❌ changePassword: Error:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
 
 /**
  * Get all users (Admin only) - from Firebase Auth via API

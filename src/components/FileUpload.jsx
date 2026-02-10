@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle, X, ArrowRight, Zap, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getLatestOrderDate } from '../utils/firestoreUtils';
+import { getLatestOrderDate } from '../utils/supabaseUtils';
 
 const FileUpload = ({ onFilesUploaded, currentUser }) => {
     const [albatrossFile, setAlbatrossFile] = useState(null);
@@ -15,7 +15,8 @@ const FileUpload = ({ onFilesUploaded, currentUser }) => {
     const fileInputRef = useRef(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false); // For database reset
 
-    const isSuperAdmin = currentUser?.username === 'adminpf';
+    // Allow ANY admin to upload, not just 'adminpf'
+    const isSuperAdmin = currentUser?.role === 'admin';
 
     if (!isSuperAdmin) {
         return (
@@ -29,7 +30,7 @@ const FileUpload = ({ onFilesUploaded, currentUser }) => {
                             Carga de Datos Restringida
                         </h3>
                         <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                            Solo el Super Administrador (@adminpf) tiene permisos para cargar nuevos archivos o reiniciar la base de datos.
+                            Solo los Administradores tienen permisos para cargar nuevos archivos o reiniciar la base de datos.
                         </p>
                     </div>
                 </div>

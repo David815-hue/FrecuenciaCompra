@@ -78,3 +78,4 @@ vercel --prod
 
 **Issue**: "Method not allowed"  
 **Fix**: Vercel route might not match, check `/api/users` and `/api/users/[uid]` structure
+

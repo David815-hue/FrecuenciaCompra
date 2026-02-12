@@ -386,216 +386,218 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
                     {/* Controls Bar */}
                     <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-2 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/30 dark:border-slate-700/50 transition-all duration-300 overflow-visible">
-                        {/* Search Input */}
-                        <div ref={searchRef} className="relative w-full md:w-96 group">
-                            <div
-                                className="absolute top-1/2 -translate-y-1/2 left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors cursor-pointer"
-                                onClick={() => {
-                                    setShowSearchTooltip(true);
-                                    setTimeout(() => setShowSearchTooltip(false), 4000);
-                                }}
-                                title="Ayuda de búsqueda"
-                            >
-                                <Search size={20} />
-                            </div>
-                            <input
-                                type="text"
-                                className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-transparent rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 focus:border-indigo-200 dark:focus:border-indigo-500/30 transition-all outline-none text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
-                                placeholder="Buscar por SKU, Email, Teléfono..."
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                onFocus={() => query.length >= 2 && setShowSuggestions(true)}
-                            />
-
-                            {/* Search Suggestions Dropdown */}
-                            <AnimatePresence>
-                                {showSuggestions && suggestions && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -5 }}
-                                        transition={{ duration: 0.15 }}
-                                        className="absolute top-full left-0 right-0 mt-2 z-[9999] max-h-[400px] overflow-y-auto custom-scrollbar"
+                        {/* Search Input - hidden on Gestores tab */}
+                        {viewMode !== 'gestores' && (
+                            <>
+                                <div ref={searchRef} className="relative w-full md:w-96 group">
+                                    <div
+                                        className="absolute top-1/2 -translate-y-1/2 left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors cursor-pointer"
+                                        onClick={() => {
+                                            setShowSearchTooltip(true);
+                                            setTimeout(() => setShowSearchTooltip(false), 4000);
+                                        }}
+                                        title="Ayuda de búsqueda"
                                     >
-                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl shadow-slate-900/10 dark:shadow-black/40 overflow-hidden">
-                                            {/* SKUs Section */}
-                                            {suggestions.skus.length > 0 && (
-                                                <div className="border-b border-slate-100 dark:border-slate-800">
-                                                    <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
-                                                        <Package size={14} className="text-indigo-500" />
-                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                                                            SKUs ({suggestions.skus.length})
-                                                        </span>
-                                                    </div>
-                                                    <div className="py-1">
-                                                        {suggestions.skus.map((item, idx) => (
-                                                            <button
-                                                                key={`sku-${idx}`}
-                                                                onClick={() => handleSuggestionClick(item.sku)}
-                                                                className="w-full px-4 py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors flex items-center justify-between gap-3 text-left group"
-                                                            >
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">
-                                                                        {item.sku}
-                                                                    </div>
-                                                                    {item.description && (
-                                                                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                                                                            {item.description}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-1 rounded-full shrink-0">
-                                                                    {item.count} {item.count === 1 ? 'pedido' : 'pedidos'}
+                                        <Search size={20} />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-transparent rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 focus:border-indigo-200 dark:focus:border-indigo-500/30 transition-all outline-none text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
+                                        placeholder="Buscar por SKU, Email, Teléfono..."
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                        onFocus={() => query.length >= 2 && setShowSuggestions(true)}
+                                    />
+
+                                    {/* Search Suggestions Dropdown */}
+                                    <AnimatePresence>
+                                        {showSuggestions && suggestions && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -5 }}
+                                                transition={{ duration: 0.15 }}
+                                                className="absolute top-full left-0 right-0 mt-2 z-[9999] max-h-[400px] overflow-y-auto custom-scrollbar"
+                                            >
+                                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl shadow-slate-900/10 dark:shadow-black/40 overflow-hidden">
+                                                    {/* SKUs Section */}
+                                                    {suggestions.skus.length > 0 && (
+                                                        <div className="border-b border-slate-100 dark:border-slate-800">
+                                                            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
+                                                                <Package size={14} className="text-indigo-500" />
+                                                                <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                                    SKUs ({suggestions.skus.length})
                                                                 </span>
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
+                                                            </div>
+                                                            <div className="py-1">
+                                                                {suggestions.skus.map((item, idx) => (
+                                                                    <button
+                                                                        key={`sku-${idx}`}
+                                                                        onClick={() => handleSuggestionClick(item.sku)}
+                                                                        className="w-full px-4 py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors flex items-center justify-between gap-3 text-left group"
+                                                                    >
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <div className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">
+                                                                                {item.sku}
+                                                                            </div>
+                                                                            {item.description && (
+                                                                                <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                                                                    {item.description}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-1 rounded-full shrink-0">
+                                                                            {item.count} {item.count === 1 ? 'pedido' : 'pedidos'}
+                                                                        </span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
 
-                                            {/* Customers Section */}
-                                            {suggestions.customers.length > 0 && (
-                                                <div className="border-b border-slate-100 dark:border-slate-800">
-                                                    <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
-                                                        <User size={14} className="text-emerald-500" />
-                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                                                            Clientes ({suggestions.customers.length})
-                                                        </span>
-                                                    </div>
-                                                    <div className="py-1">
-                                                        {suggestions.customers.map((item, idx) => (
-                                                            <button
-                                                                key={`customer-${idx}`}
-                                                                onClick={() => handleSuggestionClick(item.name)}
-                                                                className="w-full px-4 py-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors flex flex-col gap-1 text-left"
-                                                            >
-                                                                <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">
-                                                                    {item.name}
-                                                                </div>
-                                                                <div className="flex gap-3 text-xs text-slate-500 dark:text-slate-400">
-                                                                    {item.email && <span className="truncate">{item.email}</span>}
-                                                                    {item.phone && <span className="font-mono">{item.phone}</span>}
-                                                                </div>
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Identities Section */}
-                                            {suggestions.identities.length > 0 && (
-                                                <div>
-                                                    <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
-                                                        <Hash size={14} className="text-violet-500" />
-                                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                                                            Identidades ({suggestions.identities.length})
-                                                        </span>
-                                                    </div>
-                                                    <div className="py-1">
-                                                        {suggestions.identities.map((item, idx) => (
-                                                            <button
-                                                                key={`identity-${idx}`}
-                                                                onClick={() => handleSuggestionClick(item.identity)}
-                                                                className="w-full px-4 py-2.5 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors flex items-center justify-between gap-3 text-left"
-                                                            >
-                                                                <div className="flex-1">
-                                                                    <div className="font-mono font-semibold text-sm text-slate-800 dark:text-slate-200">
-                                                                        {item.identity}
-                                                                    </div>
-                                                                    {item.name && (
-                                                                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                    {/* Customers Section */}
+                                                    {suggestions.customers.length > 0 && (
+                                                        <div className="border-b border-slate-100 dark:border-slate-800">
+                                                            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
+                                                                <User size={14} className="text-emerald-500" />
+                                                                <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                                    Clientes ({suggestions.customers.length})
+                                                                </span>
+                                                            </div>
+                                                            <div className="py-1">
+                                                                {suggestions.customers.map((item, idx) => (
+                                                                    <button
+                                                                        key={`customer-${idx}`}
+                                                                        onClick={() => handleSuggestionClick(item.name)}
+                                                                        className="w-full px-4 py-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors flex flex-col gap-1 text-left"
+                                                                    >
+                                                                        <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">
                                                                             {item.name}
                                                                         </div>
-                                                                    )}
+                                                                        <div className="flex gap-3 text-xs text-slate-500 dark:text-slate-400">
+                                                                            {item.email && <span className="truncate">{item.email}</span>}
+                                                                            {item.phone && <span className="font-mono">{item.phone}</span>}
+                                                                        </div>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Identities Section */}
+                                                    {suggestions.identities.length > 0 && (
+                                                        <div>
+                                                            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
+                                                                <Hash size={14} className="text-violet-500" />
+                                                                <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                                                    Identidades ({suggestions.identities.length})
+                                                                </span>
+                                                            </div>
+                                                            <div className="py-1">
+                                                                {suggestions.identities.map((item, idx) => (
+                                                                    <button
+                                                                        key={`identity-${idx}`}
+                                                                        onClick={() => handleSuggestionClick(item.identity)}
+                                                                        className="w-full px-4 py-2.5 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors flex items-center justify-between gap-3 text-left"
+                                                                    >
+                                                                        <div className="flex-1">
+                                                                            <div className="font-mono font-semibold text-sm text-slate-800 dark:text-slate-200">
+                                                                                {item.identity}
+                                                                            </div>
+                                                                            {item.name && (
+                                                                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                                    {item.name}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        {item.phone && (
+                                                                            <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">
+                                                                                {item.phone}
+                                                                            </span>
+                                                                        )}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {/* Animated Search Helper Tooltip */}
+                                    <AnimatePresence>
+                                        {showSearchTooltip && !showSuggestions && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                                className="absolute top-full left-0 right-0 mt-2 z-[9999]"
+                                            >
+                                                <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/90 dark:to-violet-950/90 backdrop-blur-xl border-2 border-indigo-200/60 dark:border-indigo-500/30 rounded-2xl p-4 shadow-2xl shadow-indigo-500/20 dark:shadow-indigo-900/40">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                                                            <span className="text-base">💡</span>
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-200 mb-2">Puedes buscar por:</h4>
+                                                            <div className="space-y-1.5 text-xs text-indigo-700 dark:text-indigo-300">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
+                                                                    <span><strong className="font-semibold">Nombre</strong> del cliente</span>
                                                                 </div>
-                                                                {item.phone && (
-                                                                    <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">
-                                                                        {item.phone}
-                                                                    </span>
-                                                                )}
-                                                            </button>
-                                                        ))}
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
+                                                                    <span><strong className="font-semibold">Identidad</strong> (DNI)</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
+                                                                    <span><strong className="font-semibold">Email</strong> o <strong className="font-semibold">Teléfono</strong></span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
+                                                                    <span><strong className="font-semibold">SKU</strong> individual</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-violet-400 dark:bg-violet-500"></div>
+                                                                    <span><strong className="font-semibold">Lista de SKUs</strong> separados por <code className="px-1 py-0.5 bg-white/60 dark:bg-slate-900/60 rounded text-[10px] font-mono text-violet-600 dark:text-violet-400">,</code></span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setShowSearchTooltip(false)}
+                                                            className="w-6 h-6 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-500/20 flex items-center justify-center text-indigo-400 dark:text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors shrink-0"
+                                                            title="Cerrar"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
                                                     </div>
+                                                    {/* Arrow pointing up */}
+                                                    <div className="absolute -top-2 left-8 w-4 h-4 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/90 dark:to-violet-950/90 border-t-2 border-l-2 border-indigo-200/60 dark:border-indigo-500/30 rotate-45"></div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
 
-                            {/* Animated Search Helper Tooltip */}
-                            <AnimatePresence>
-                                {showSearchTooltip && !showSuggestions && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: -5, scale: 0.95 }}
-                                        transition={{ duration: 0.2, ease: "easeOut" }}
-                                        className="absolute top-full left-0 right-0 mt-2 z-[9999]"
-                                    >
-                                        <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/90 dark:to-violet-950/90 backdrop-blur-xl border-2 border-indigo-200/60 dark:border-indigo-500/30 rounded-2xl p-4 shadow-2xl shadow-indigo-500/20 dark:shadow-indigo-900/40">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                                                    <span className="text-base">💡</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-200 mb-2">Puedes buscar por:</h4>
-                                                    <div className="space-y-1.5 text-xs text-indigo-700 dark:text-indigo-300">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
-                                                            <span><strong className="font-semibold">Nombre</strong> del cliente</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
-                                                            <span><strong className="font-semibold">Identidad</strong> (DNI)</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
-                                                            <span><strong className="font-semibold">Email</strong> o <strong className="font-semibold">Teléfono</strong></span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 dark:bg-indigo-500"></div>
-                                                            <span><strong className="font-semibold">SKU</strong> individual</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-violet-400 dark:bg-violet-500"></div>
-                                                            <span><strong className="font-semibold">Lista de SKUs</strong> separados por <code className="px-1 py-0.5 bg-white/60 dark:bg-slate-900/60 rounded text-[10px] font-mono text-violet-600 dark:text-violet-400">,</code></span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => setShowSearchTooltip(false)}
-                                                    className="w-6 h-6 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-500/20 flex items-center justify-center text-indigo-400 dark:text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors shrink-0"
-                                                    title="Cerrar"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                            {/* Arrow pointing up */}
-                                            <div className="absolute -top-2 left-8 w-4 h-4 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/90 dark:to-violet-950/90 border-t-2 border-l-2 border-indigo-200/60 dark:border-indigo-500/30 rotate-45"></div>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-
-                        {/* Recurring Toggle */}
-                        <button
-                            onClick={() => setOnlyRecurring(!onlyRecurring)}
-                            className={`
+                                {/* Recurring Toggle */}
+                                <button
+                                    onClick={() => setOnlyRecurring(!onlyRecurring)}
+                                    className={`
                                 flex items-center justify-center gap-2 px-6 py-3 rounded-xl transition-all font-semibold whitespace-nowrap border
                                 ${onlyRecurring
-                                    ? 'bg-indigo-50 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 shadow-sm'
-                                    : 'bg-white dark:bg-slate-900 border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300'}
+                                            ? 'bg-indigo-50 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 shadow-sm'
+                                            : 'bg-white dark:bg-slate-900 border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300'}
                             `}
-                        >
-                            <Filter size={18} />
-                            {onlyRecurring ? 'Solo Recurrentes' : 'Mostrar Todos'}
-                        </button>
+                                >
+                                    <Filter size={18} />
+                                    {onlyRecurring ? 'Solo Recurrentes' : 'Mostrar Todos'}
+                                </button>
 
-                        {/* Top SKUs Filter - TEMPORARILY HIDDEN */}
-                        {/* TODO: Retomar este filtro más adelante */}
-                        {/*
+                                {/* Top SKUs Filter - TEMPORARILY HIDDEN */}
+                                {/* TODO: Retomar este filtro más adelante */}
+                                {/*
                         <select
                             value={topSKUsFilter}
                             onChange={(e) => setTopSKUsFilter(e.target.value)}
@@ -607,8 +609,10 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             <option value="top20">🏆 Top 20 más vendidos</option>
                         </select>
                         */}
+                            </>
+                        )}
 
-                        {/* View Mode Toggle */}
+                        {/* View Mode Toggle - always visible */}
                         <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl relative z-0">
                             {[
                                 { id: 'table', label: 'Tabla', icon: BarChart3 },
@@ -619,11 +623,11 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                     key={tab.id}
                                     onClick={() => setViewMode(tab.id)}
                                     className={`
-                                        relative flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-semibold text-sm z-10
-                                        ${viewMode === tab.id
+                                    relative flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-semibold text-sm z-10
+                                    ${viewMode === tab.id
                                             ? 'text-indigo-600 dark:text-indigo-400'
                                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}
-                                    `}
+                                `}
                                 >
                                     {viewMode === tab.id && (
                                         <motion.div
@@ -641,7 +645,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                 </div>
 
                 {/* Advanced Filters Section */}
-                {query.length >= 3 && (
+                {viewMode !== 'gestores' && query.length >= 3 && (
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -713,11 +717,12 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             </motion.button>
                         )}
                     </motion.div>
-                )}
-            </header>
+                )
+                }
+            </header >
 
             {/* Conditional Content: Table, RFM or Gestores */}
-            <AnimatePresence mode="wait">
+            < AnimatePresence mode="wait" >
                 {viewMode === 'table' ? (
                     <motion.div
                         key="table"
@@ -1052,10 +1057,10 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         />
                     </motion.div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
             {/* Customer History Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {selectedCustomer && (
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -1171,8 +1176,8 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         </motion.div>
                     </motion.div>
                 )}
-            </AnimatePresence>
-        </div>
+            </AnimatePresence >
+        </div >
     );
 };
 

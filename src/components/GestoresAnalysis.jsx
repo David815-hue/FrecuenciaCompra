@@ -19,6 +19,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [expandedZones, setExpandedZones] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
+    const [customerSearchTerm, setCustomerSearchTerm] = useState('');
 
     const filterButtonRef = useRef(null);
 
@@ -169,11 +170,24 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
     }, [data, selectedGestor, sortBy, sortDirection]); // Added sortBy and sortDirection
 
+    // Filter customers by search term (Identidad, Nombre, Teléfono)
+    const searchedCustomers = useMemo(() => {
+        if (!customerSearchTerm.trim()) return filteredCustomers;
+
+        const term = customerSearchTerm.toLowerCase().trim();
+        return filteredCustomers.filter(customer => {
+            const nameMatch = (customer.name || '').toLowerCase().includes(term);
+            const identityMatch = (customer.identity || '').toLowerCase().includes(term);
+            const phoneMatch = (customer.phone || '').toLowerCase().includes(term);
+            return nameMatch || identityMatch || phoneMatch;
+        });
+    }, [filteredCustomers, customerSearchTerm]);
+
     // Calculate metrics
     const metrics = useMemo(() => {
-        const totalClientes = filteredCustomers.length;
-        const totalPedidos = filteredCustomers.reduce((sum, c) => sum + c.orders.length, 0);
-        const totalVentas = filteredCustomers.reduce((sum, c) => sum + c.totalSpent, 0);
+        const totalClientes = searchedCustomers.length;
+        const totalPedidos = searchedCustomers.reduce((sum, c) => sum + c.orders.length, 0);
+        const totalVentas = searchedCustomers.reduce((sum, c) => sum + c.totalSpent, 0);
         const promedioCliente = totalClientes > 0 ? totalVentas / totalClientes : 0;
 
         return {
@@ -182,14 +196,14 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
             totalVentas,
             promedioCliente
         };
-    }, [filteredCustomers]);
+    }, [searchedCustomers]);
 
     // Calculate date range for month visualizer
     const dateRange = useMemo(() => {
         let minTime = Infinity;
         let maxTime = -Infinity;
 
-        filteredCustomers.forEach(c => {
+        searchedCustomers.forEach(c => {
             c.orders.forEach(o => {
                 const d = new Date(o.orderDate);
                 if (!isNaN(d)) {
@@ -205,7 +219,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         }
 
         return { min: new Date(minTime), max: new Date(maxTime) };
-    }, [filteredCustomers]);
+    }, [searchedCustomers]);
 
     // Analyze full history to detect shared customers
     // This runs on ALL data, not just filtered orders
@@ -243,8 +257,8 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
     // Pagination logic
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentCustomers = filteredCustomers.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+    const currentCustomers = searchedCustomers.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(searchedCustomers.length / itemsPerPage);
 
     const handlePageChange = (pageNumber) => {
         setCurrentPage(pageNumber);
@@ -254,7 +268,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedGestor]);
+    }, [selectedGestor, customerSearchTerm]);
 
     const handleMonthClick = (customer) => (monthKey, monthData) => {
         // monthData contains { count, total, date, items? }
@@ -276,10 +290,10 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
     // Export Handler
     const handleExport = () => {
-        if (!filteredCustomers.length) return;
+        if (!searchedCustomers.length) return;
 
         // Flatten data for export
-        const exportData = filteredCustomers.map(c => ({
+        const exportData = searchedCustomers.map(c => ({
             'Cliente': c.name,
             'Identidad': c.identity,
             'Email': c.email,
@@ -337,7 +351,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                 </button>
 
                 {/* Export Button */}
-                {filteredCustomers.length > 0 && (
+                {searchedCustomers.length > 0 && (
                     <button
                         onClick={handleExport}
                         className="flex items-center gap-2 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg hover:shadow-emerald-500/20 transition-all font-semibold text-sm ml-auto"
@@ -532,226 +546,267 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                 {/* Customers Table */}
                 {filteredCustomers.length > 0 ? (
                     <div className="bg-white/20 dark:bg-slate-900/20 backdrop-blur-3xl rounded-[2rem] shadow-[0_20px_60px_0_rgba(31,38,135,0.25)] dark:shadow-[0_20px_60px_0_rgba(0,0,0,0.6)] border border-white/30 dark:border-slate-700/40 overflow-hidden">
-                        <div className="overflow-x-auto custom-scrollbar">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
-                                        <th className="px-6 py-6 w-80">Cliente</th>
-                                        <th className="px-4 py-6 w-48">Identidad</th>
-                                        <th
-                                            className="px-6 py-6 w-48 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors select-none"
-                                            onClick={() => {
-                                                if (sortBy === 'total') {
-                                                    setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
-                                                } else {
-                                                    setSortBy('total');
-                                                    setSortDirection('desc');
-                                                }
-                                            }}
-                                        >
-                                            <div className="flex items-center justify-end gap-2">
-                                                <span>Total</span>
-                                                <ArrowUpDown size={14} className="opacity-60" />
-                                            </div>
-                                        </th>
-                                        <th
-                                            className="px-6 py-6 min-w-[300px] cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors select-none"
-                                            onClick={() => {
-                                                if (sortBy === 'frequency') {
-                                                    setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
-                                                } else {
-                                                    setSortBy('frequency');
-                                                    setSortDirection('desc');
-                                                }
-                                            }}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <Calendar size={14} />
-                                                <span>Frecuencia Mensual</span>
-                                                <ArrowUpDown size={14} className="opacity-60" />
-                                                <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
-                                                    {dateRange.min.getFullYear()}
-                                                </span>
-                                            </div>
-                                        </th>
-                                        <th className="px-6 py-6 w-32">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                    {currentCustomers.map((customer, idx) => {
-                                        // Check if shared
-                                        const allHistory = customerGestorHistory[customer.email || customer.phone || customer.name] || { gestores: {}, totalGestores: 0 };
-                                        const isShared = allHistory.totalGestores > 1;
-
-                                        // Calculate total orders with other gestores
-                                        const otherGestoresOrderCount = Object.entries(allHistory.gestores)
-                                            .filter(([name]) => name !== selectedGestor)
-                                            .reduce((sum, [, count]) => sum + count, 0);
-
-                                        const otherGestoresInfo = Object.entries(allHistory.gestores)
-                                            .filter(([name]) => name !== selectedGestor) // Hide current if specific selected
-                                            .map(([name, count]) => `${name}: ${count} pedidos`)
-                                            .join('\n');
-
-                                        return (
-                                            <tr
-                                                key={`${customer.name}-${idx}`}
-                                                className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group"
-                                            >
-                                                <td className="px-6 py-6 align-top">
-                                                    <div className="flex gap-3">
-                                                        <div className="relative">
-                                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-sm shrink-0 shadow-inner">
-                                                                {(customer.name || 'N/A').substring(0, 2).toUpperCase()}
-                                                            </div>
-
-                                                            {/* Shared Indicator with Tooltip */}
-                                                            {isShared && (
-                                                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-full border border-white dark:border-slate-900 flex items-center justify-center shadow-sm cursor-help group/tooltip z-10">
-                                                                    <Users size={12} strokeWidth={2.5} />
-
-                                                                    {/* Custom Tooltip */}
-                                                                    <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-max max-w-[200px] bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs p-2 rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity shadow-xl z-50">
-                                                                        <div className="font-bold mb-1 border-b border-white/20 dark:border-slate-300/20 pb-1 flex items-center gap-1.5">
-                                                                            <Users size={12} />
-                                                                            Cliente Compartido
-                                                                        </div>
-                                                                        <div className="whitespace-pre-line leading-relaxed">
-                                                                            {selectedGestor !== 'all' ? (
-                                                                                <>
-                                                                                    <span className="opacity-70">Otros gestores:</span>
-                                                                                    {'\n' + otherGestoresInfo}
-                                                                                </>
-                                                                            ) : (
-                                                                                Object.entries(allHistory.gestores).map(([name, count]) => `â€¢ ${name}: ${count}`).join('\n')
-                                                                            )}
-                                                                        </div>
-                                                                        {/* Arrow */}
-                                                                        <div className="absolute top-1/2 -translate-y-1/2 -left-1 w-2 h-2 bg-slate-900 dark:bg-white rotate-45"></div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="font-bold text-slate-800 dark:text-slate-200 text-base mb-1 truncate flex items-center gap-2">
-                                                                {customer.name}
-                                                            </div>
-                                                            <div className="flex flex-col gap-1">
-                                                                {customer.email && (
-                                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
-                                                                        <Mail size={12} />
-                                                                        {customer.email}
-                                                                    </div>
-                                                                )}
-                                                                <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1">
-                                                                    {customer.phone && (
-                                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
-                                                                            <Phone size={12} />
-                                                                            {customer.phone}
-                                                                        </div>
-                                                                    )}
-
-                                                                    {customer.city && (
-                                                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-                                                                            <MapPin size={12} />
-                                                                            {customer.city}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                <td className="px-4 py-6 align-top">
-                                                    <div className="flex flex-col items-start gap-2">
-                                                        <div className="font-mono text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                                                            {customer.identity}
-                                                        </div>
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full inline-block w-fit">
-                                                                {customer.orders.length} Pedidos ({selectedGestor})
-                                                            </span>
-                                                            {selectedGestor !== 'all' && isShared && (
-                                                                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                                                    +{otherGestoresOrderCount} otros
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                <td className="px-6 py-6 align-top text-right">
-                                                    <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight">
-                                                        L. {(customer.totalSpent || 0).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    </div>
-                                                </td>
-
-                                                <td className="px-6 py-6 align-top">
-                                                    <MonthVisualizer
-                                                        orders={customer.orders}
-                                                        minDate={dateRange.min}
-                                                        maxDate={dateRange.max}
-                                                        onClick={handleMonthClick(customer)}
-                                                    />
-                                                </td>
-
-                                                <td className="px-6 py-6 align-top">
-                                                    <button
-                                                        onClick={() => setSelectedCustomerHistory({
-                                                            customer,
-                                                            allHistory,
-                                                            fullOrders: data.filter(order =>
-                                                                (order.email && order.email === customer.email) ||
-                                                                (order.phone && order.phone === customer.phone) ||
-                                                                (order.name && order.name === customer.name) ||
-                                                                (order.customerName && order.customerName === customer.name)
-                                                            )
-                                                        })}
-                                                        className="shrink-0 w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-all hover:scale-110 hover:shadow-md mx-auto"
-                                                        title="Ver Historial Completo"
-                                                    >
-                                                        <Activity size={16} />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                        {/* Customer Search Bar */}
+                        <div className="px-6 pt-5 pb-3">
+                            <div className="relative w-full md:w-96 group">
+                                <div className="absolute top-1/2 -translate-y-1/2 left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors">
+                                    <Search size={18} />
+                                </div>
+                                <input
+                                    type="text"
+                                    className="w-full pl-11 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 focus:border-indigo-200 dark:focus:border-indigo-500/30 transition-all outline-none text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium text-sm"
+                                    placeholder="Buscar por Identidad, Nombre o Teléfono..."
+                                    value={customerSearchTerm}
+                                    onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                                />
+                                {customerSearchTerm && (
+                                    <button
+                                        onClick={() => setCustomerSearchTerm('')}
+                                        className="absolute top-1/2 -translate-y-1/2 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                )}
+                            </div>
+                            {customerSearchTerm && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 ml-1">
+                                    {searchedCustomers.length} resultado{searchedCustomers.length !== 1 ? 's' : ''} encontrado{searchedCustomers.length !== 1 ? 's' : ''}
+                                </p>
+                            )}
                         </div>
 
-                        {/* Pagination */}
-                        {filteredCustomers.length > itemsPerPage && (
-                            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
-                                <button
-                                    onClick={() => handlePageChange(currentPage - 1)}
-                                    disabled={currentPage === 1}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
-                                    ${currentPage === 1
-                                            ? 'text-slate-400 cursor-not-allowed'
-                                            : 'text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
-                                        }`}
-                                >
-                                    ← Anterior
-                                </button>
+                        {searchedCustomers.length > 0 ? (
+                            <>
+                                <div className="overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                                <th className="px-6 py-6 w-80">Cliente</th>
+                                                <th className="px-4 py-6 w-48">Identidad</th>
+                                                <th
+                                                    className="px-6 py-6 w-48 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                                    onClick={() => {
+                                                        if (sortBy === 'total') {
+                                                            setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+                                                        } else {
+                                                            setSortBy('total');
+                                                            setSortDirection('desc');
+                                                        }
+                                                    }}
+                                                >
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <span>Total</span>
+                                                        <ArrowUpDown size={14} className="opacity-60" />
+                                                    </div>
+                                                </th>
+                                                <th
+                                                    className="px-6 py-6 min-w-[300px] cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors select-none"
+                                                    onClick={() => {
+                                                        if (sortBy === 'frequency') {
+                                                            setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+                                                        } else {
+                                                            setSortBy('frequency');
+                                                            setSortDirection('desc');
+                                                        }
+                                                    }}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar size={14} />
+                                                        <span>Frecuencia Mensual</span>
+                                                        <ArrowUpDown size={14} className="opacity-60" />
+                                                        <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
+                                                            {dateRange.min.getFullYear()}
+                                                        </span>
+                                                    </div>
+                                                </th>
+                                                <th className="px-6 py-6 w-32">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                            {currentCustomers.map((customer, idx) => {
+                                                // Check if shared
+                                                const allHistory = customerGestorHistory[customer.email || customer.phone || customer.name] || { gestores: {}, totalGestores: 0 };
+                                                const isShared = allHistory.totalGestores > 1;
 
-                                <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                                    Página <span className="text-slate-900 dark:text-white font-bold">{currentPage}</span> de <span className="font-bold">{totalPages}</span>
+                                                // Calculate total orders with other gestores
+                                                const otherGestoresOrderCount = Object.entries(allHistory.gestores)
+                                                    .filter(([name]) => name !== selectedGestor)
+                                                    .reduce((sum, [, count]) => sum + count, 0);
+
+                                                const otherGestoresInfo = Object.entries(allHistory.gestores)
+                                                    .filter(([name]) => name !== selectedGestor) // Hide current if specific selected
+                                                    .map(([name, count]) => `${name}: ${count} pedidos`)
+                                                    .join('\n');
+
+                                                return (
+                                                    <tr
+                                                        key={`${customer.name}-${idx}`}
+                                                        className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group"
+                                                    >
+                                                        <td className="px-6 py-6 align-top">
+                                                            <div className="flex gap-3">
+                                                                <div className="relative">
+                                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-sm shrink-0 shadow-inner">
+                                                                        {(customer.name || 'N/A').substring(0, 2).toUpperCase()}
+                                                                    </div>
+
+                                                                    {/* Shared Indicator with Tooltip */}
+                                                                    {isShared && (
+                                                                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-full border border-white dark:border-slate-900 flex items-center justify-center shadow-sm cursor-help group/tooltip z-10">
+                                                                            <Users size={12} strokeWidth={2.5} />
+
+                                                                            {/* Custom Tooltip */}
+                                                                            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-max max-w-[200px] bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs p-2 rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity shadow-xl z-50">
+                                                                                <div className="font-bold mb-1 border-b border-white/20 dark:border-slate-300/20 pb-1 flex items-center gap-1.5">
+                                                                                    <Users size={12} />
+                                                                                    Cliente Compartido
+                                                                                </div>
+                                                                                <div className="whitespace-pre-line leading-relaxed">
+                                                                                    {selectedGestor !== 'all' ? (
+                                                                                        <>
+                                                                                            <span className="opacity-70">Otros gestores:</span>
+                                                                                            {'\n' + otherGestoresInfo}
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        Object.entries(allHistory.gestores).map(([name, count]) => `â€¢ ${name}: ${count}`).join('\n')
+                                                                                    )}
+                                                                                </div>
+                                                                                {/* Arrow */}
+                                                                                <div className="absolute top-1/2 -translate-y-1/2 -left-1 w-2 h-2 bg-slate-900 dark:bg-white rotate-45"></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="font-bold text-slate-800 dark:text-slate-200 text-base mb-1 truncate flex items-center gap-2">
+                                                                        {customer.name}
+                                                                    </div>
+                                                                    <div className="flex flex-col gap-1">
+                                                                        {customer.email && (
+                                                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
+                                                                                <Mail size={12} />
+                                                                                {customer.email}
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1">
+                                                                            {customer.phone && (
+                                                                                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                                                                                    <Phone size={12} />
+                                                                                    {customer.phone}
+                                                                                </div>
+                                                                            )}
+
+                                                                            {customer.city && (
+                                                                                <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                                                                                    <MapPin size={12} />
+                                                                                    {customer.city}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td className="px-4 py-6 align-top">
+                                                            <div className="flex flex-col items-start gap-2">
+                                                                <div className="font-mono text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                                    {customer.identity}
+                                                                </div>
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full inline-block w-fit">
+                                                                        {customer.orders.length} Pedidos ({selectedGestor})
+                                                                    </span>
+                                                                    {selectedGestor !== 'all' && isShared && (
+                                                                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                                            +{otherGestoresOrderCount} otros
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td className="px-6 py-6 align-top text-right">
+                                                            <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight">
+                                                                L. {(customer.totalSpent || 0).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </div>
+                                                        </td>
+
+                                                        <td className="px-6 py-6 align-top">
+                                                            <MonthVisualizer
+                                                                orders={customer.orders}
+                                                                minDate={dateRange.min}
+                                                                maxDate={dateRange.max}
+                                                                onClick={handleMonthClick(customer)}
+                                                            />
+                                                        </td>
+
+                                                        <td className="px-6 py-6 align-top">
+                                                            <button
+                                                                onClick={() => setSelectedCustomerHistory({
+                                                                    customer,
+                                                                    allHistory,
+                                                                    fullOrders: data.filter(order =>
+                                                                        (order.email && order.email === customer.email) ||
+                                                                        (order.phone && order.phone === customer.phone) ||
+                                                                        (order.name && order.name === customer.name) ||
+                                                                        (order.customerName && order.customerName === customer.name)
+                                                                    )
+                                                                })}
+                                                                className="shrink-0 w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-all hover:scale-110 hover:shadow-md mx-auto"
+                                                                title="Ver Historial Completo"
+                                                            >
+                                                                <Activity size={16} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
 
-                                <button
-                                    onClick={() => handlePageChange(currentPage + 1)}
-                                    disabled={currentPage === totalPages}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+                                {/* Pagination */}
+                                {searchedCustomers.length > itemsPerPage && (
+                                    <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+                                        <button
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+                                    ${currentPage === 1
+                                                    ? 'text-slate-400 cursor-not-allowed'
+                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+                                                }`}
+                                        >
+                                            ← Anterior
+                                        </button>
+
+                                        <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                            Página <span className="text-slate-900 dark:text-white font-bold">{currentPage}</span> de <span className="font-bold">{totalPages}</span>
+                                        </div>
+
+                                        <button
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === totalPages}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors
                                     ${currentPage === totalPages
-                                            ? 'text-slate-400 cursor-not-allowed'
-                                            : 'text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
-                                        }`}
-                                >
-                                    Siguiente →
-                                </button>
+                                                    ? 'text-slate-400 cursor-not-allowed'
+                                                    : 'text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+                                                }`}
+                                        >
+                                            Siguiente →
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="px-6 pb-8 pt-4 text-center">
+                                <Search size={36} className="mx-auto mb-3 text-slate-300 dark:text-slate-600" />
+                                <h3 className="text-lg font-bold text-slate-600 dark:text-slate-400 mb-1">Sin resultados</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                    No se encontraron clientes que coincidan con "{customerSearchTerm}".
+                                </p>
                             </div>
                         )}
                     </div>
@@ -763,7 +818,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                         </h3>
                         <p className="text-slate-500 dark:text-slate-400">
                             {selectedGestor === 'all'
-                                ? 'Para visualizar los datos, selecciona primero una Zona y luego un Gestor especÃ­fico.'
+                                ? 'Para visualizar los datos, selecciona primero una Zona y luego un Gestor específico.'
                                 : `El gestor ${selectedGestor} no tiene clientes asignados.`}
                         </p>
                     </div>

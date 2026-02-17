@@ -23,6 +23,10 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     const [selectedCities, setSelectedCities] = useState([]);
     const [minQuantity, setMinQuantity] = useState('');
     const [topSKUsFilter, setTopSKUsFilter] = useState('all'); // 'all', 'top5', 'top10', 'top20'
+    const [dateRange, setDateRange] = useState({
+        start: '',
+        end: ''
+    });
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -208,8 +212,23 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
             });
         }
 
+        // Apply Date Filter (Range)
+        if (dateRange.start && dateRange.end) {
+            const start = new Date(dateRange.start);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(dateRange.end);
+            end.setHours(23, 59, 59, 999);
+
+            list = list.filter(c => {
+                return c.orders.some(order => {
+                    const orderDate = new Date(order.orderDate);
+                    return orderDate >= start && orderDate <= end;
+                });
+            });
+        }
+
         return list;
-    }, [customers, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, topSKUs, query]);
+    }, [customers, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, topSKUs, query, dateRange]);
 
     // 5. Apply Sorting
     const sortedList = useMemo(() => {
@@ -255,7 +274,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     }, [query, selectedCities, minQuantity, onlyRecurring]);
 
     // 4. Calculate Global Date Range
-    const dateRange = useMemo(() => {
+    const displayDateRange = useMemo(() => {
         let minTime = Infinity;
         let maxTime = -Infinity;
 
@@ -681,6 +700,33 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             </div>
                         </div>
 
+                        {/* Date Range Filter */}
+                        <div className="flex flex-col gap-2 w-full md:w-auto">
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Calendar size={12} />
+                                Rango de Fechas
+                            </label>
+                            <div className="flex items-center gap-2">
+                                <div className="relative">
+                                    <input
+                                        type="date"
+                                        value={dateRange.start}
+                                        onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                                        className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                                    />
+                                </div>
+                                <span className="text-slate-400 font-bold">-</span>
+                                <div className="relative">
+                                    <input
+                                        type="date"
+                                        value={dateRange.end}
+                                        onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                                        className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Quantity Filter */}
                         <div className="flex flex-col gap-2 w-full md:w-auto">
                             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -701,7 +747,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         </div>
 
                         {/* Clear Filters Button */}
-                        {(selectedCities.length > 0 || minQuantity !== '') && (
+                        {(selectedCities.length > 0 || minQuantity !== '' || dateRange.start !== '' || dateRange.end !== '') && (
                             <motion.button
                                 initial={{ scale: 0.9, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
@@ -709,6 +755,10 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                     setSelectedCities([]);
                                     setMinQuantity('');
                                     setTopSKUsFilter('all');
+                                    setDateRange({
+                                        start: '',
+                                        end: ''
+                                    });
                                 }}
                                 className="flex items-center gap-1.5 px-4 py-2 mt-6 md:mt-0 md:ml-auto bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-full text-sm font-semibold transition-all border border-rose-200 dark:border-rose-500/30"
                             >
@@ -789,7 +839,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                         <ArrowUpDown size={14} className="opacity-60" />
                                                     )}
                                                     <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
-                                                        {dateRange.min.getFullYear()}
+                                                        {displayDateRange.min.getFullYear()}
                                                     </span>
                                                 </div>
                                             </th>

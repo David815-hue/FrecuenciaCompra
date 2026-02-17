@@ -20,6 +20,10 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
     const [expandedZones, setExpandedZones] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const [dateRange, setDateRange] = useState({
+        start: '',
+        end: ''
+    });
 
     const filterButtonRef = useRef(null);
 
@@ -122,6 +126,19 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
             filtered = filtered.filter(order => order.gestorName === selectedGestor);
         }
 
+        // Filter by date range
+        if (dateRange.start && dateRange.end) {
+            const start = new Date(dateRange.start);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(dateRange.end);
+            end.setHours(23, 59, 59, 999);
+
+            filtered = filtered.filter(order => {
+                const orderDate = new Date(order.orderDate);
+                return orderDate >= start && orderDate <= end;
+            });
+        }
+
         // Group by customer
         const map = {};
         filtered.forEach(order => {
@@ -168,7 +185,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
         return customers;
 
-    }, [data, selectedGestor, sortBy, sortDirection]); // Added sortBy and sortDirection
+    }, [data, selectedGestor, sortBy, sortDirection, dateRange]); // Added dateRange
 
     // Filter customers by search term (Identidad, Nombre, Teléfono)
     const searchedCustomers = useMemo(() => {
@@ -199,7 +216,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
     }, [searchedCustomers]);
 
     // Calculate date range for month visualizer
-    const dateRange = useMemo(() => {
+    const displayDateRange = useMemo(() => {
         let minTime = Infinity;
         let maxTime = -Infinity;
 
@@ -268,7 +285,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedGestor, customerSearchTerm]);
+    }, [selectedGestor, customerSearchTerm, dateRange]);
 
     const handleMonthClick = (customer) => (monthKey, monthData) => {
         // monthData contains { count, total, date, items? }
@@ -349,6 +366,29 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                     </div>
                     {!isRestricted && <ChevronDown size={14} className={`ml-2 opacity-50 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />}
                 </button>
+
+                {/* Date Range Filter */}
+                <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Calendar size={12} />
+                        Rango de Fechas
+                    </label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="date"
+                            value={dateRange.start}
+                            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                            className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                        />
+                        <span className="text-slate-400 font-bold">-</span>
+                        <input
+                            type="date"
+                            value={dateRange.end}
+                            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                            className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                        />
+                    </div>
+                </div>
 
                 {/* Export Button */}
                 {searchedCustomers.length > 0 && (
@@ -615,7 +655,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                                         <span>Frecuencia Mensual</span>
                                                         <ArrowUpDown size={14} className="opacity-60" />
                                                         <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
-                                                            {dateRange.min.getFullYear()}
+                                                            {displayDateRange.min?.getFullYear() || new Date().getFullYear()}
                                                         </span>
                                                     </div>
                                                 </th>
@@ -736,8 +776,8 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                                         <td className="px-6 py-6 align-top">
                                                             <MonthVisualizer
                                                                 orders={customer.orders}
-                                                                minDate={dateRange.min}
-                                                                maxDate={dateRange.max}
+                                                                minDate={displayDateRange.min}
+                                                                maxDate={displayDateRange.max}
                                                                 onClick={handleMonthClick(customer)}
                                                             />
                                                         </td>

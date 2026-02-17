@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, X, ArrowRight, Zap, RefreshCw } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, X, ArrowRight, Zap, RefreshCw, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getLatestOrderDate } from '../utils/supabaseUtils';
 
-const FileUpload = ({ onFilesUploaded, currentUser }) => {
+const FileUpload = ({ onFilesUploaded, currentUser, onGoToDashboard }) => {
     const [albatrossFile, setAlbatrossFile] = useState(null);
     const [rmsFile, setRmsFile] = useState(null);
     const [isIncremental, setIsIncremental] = useState(false);
     const [latestDate, setLatestDate] = useState(null);
     const [loadingDate, setLoadingDate] = useState(true);
-    const [uploading, setUploading] = useState(false);
+    const [isOpeningDashboard, setIsOpeningDashboard] = useState(false);
     const [message, setMessage] = useState(null);
     const [dragActive, setDragActive] = useState(false);
     const fileInputRef = useRef(null);
@@ -59,6 +59,29 @@ const FileUpload = ({ onFilesUploaded, currentUser }) => {
     const handleProcess = () => {
         if (albatrossFile && rmsFile) {
             onFilesUploaded(albatrossFile, rmsFile, isIncremental);
+        }
+    };
+
+    const handleGoToDashboard = async () => {
+        if (!onGoToDashboard) return;
+
+        setIsOpeningDashboard(true);
+        setMessage(null);
+        try {
+            const result = await onGoToDashboard();
+            if (!result?.hasData) {
+                setMessage({
+                    type: 'warning',
+                    text: 'No hay datos cargados para mostrar en el dashboard.'
+                });
+            }
+        } catch (error) {
+            setMessage({
+                type: 'error',
+                text: 'No se pudo abrir el dashboard en este momento.'
+            });
+        } finally {
+            setIsOpeningDashboard(false);
         }
     };
 
@@ -118,6 +141,24 @@ const FileUpload = ({ onFilesUploaded, currentUser }) => {
                         </button>
                     </div>
                 </div>
+
+                {/* Quick Access to Dashboard */}
+                <div className="mb-8 flex justify-center">
+                    <button
+                        onClick={handleGoToDashboard}
+                        disabled={isOpeningDashboard}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/45 dark:bg-slate-900/45 backdrop-blur-lg border border-white/40 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 font-semibold shadow-[0_8px_24px_rgba(31,38,135,0.16)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)] hover:border-indigo-300/60 dark:hover:border-indigo-500/50 hover:text-indigo-700 dark:hover:text-indigo-300 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        <BarChart3 size={16} />
+                        {isOpeningDashboard ? 'Abriendo Dashboard...' : 'Ir al Dashboard'}
+                    </button>
+                </div>
+
+                {message && (
+                    <div className={`mb-6 text-center text-sm font-medium ${message.type === 'error' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        {message.text}
+                    </div>
+                )}
 
                 {/* Latest Date Info */}
                 {isIncremental && latestDate && (

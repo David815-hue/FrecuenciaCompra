@@ -168,7 +168,32 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
             return [];
         }
 
-        let list = customers;
+        const hasDateFilter = Boolean(dateRange.start || dateRange.end);
+        const start = hasDateFilter ? new Date(dateRange.start || '1900-01-01') : null;
+        const end = hasDateFilter ? new Date(dateRange.end || '2999-12-31') : null;
+
+        if (start) start.setHours(0, 0, 0, 0);
+        if (end) end.setHours(23, 59, 59, 999);
+
+        // If date range is active, trim each customer's orders so all table metrics
+        // (frequency, order count, totals) are calculated from the filtered period.
+        let list = customers
+            .map(c => {
+                const filteredOrders = hasDateFilter
+                    ? c.orders.filter(order => {
+                        const orderDate = new Date(order.orderDate);
+                        if (isNaN(orderDate.getTime())) return false;
+                        return orderDate >= start && orderDate <= end;
+                    })
+                    : c.orders;
+
+                return {
+                    ...c,
+                    orders: filteredOrders,
+                    totalInvestment: filteredOrders.reduce((sum, order) => sum + (parseFloat(order.totalAmount) || 0), 0)
+                };
+            })
+            .filter(c => c.orders.length > 0);
 
         // Apply City Filter
         if (selectedCities.length > 0) {
@@ -209,21 +234,6 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         return topSKUsList.includes(sku);
                     })
                 );
-            });
-        }
-
-        // Apply Date Filter (Range)
-        if (dateRange.start && dateRange.end) {
-            const start = new Date(dateRange.start);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(dateRange.end);
-            end.setHours(23, 59, 59, 999);
-
-            list = list.filter(c => {
-                return c.orders.some(order => {
-                    const orderDate = new Date(order.orderDate);
-                    return orderDate >= start && orderDate <= end;
-                });
             });
         }
 
@@ -271,7 +281,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, selectedCities, minQuantity, onlyRecurring]);
+    }, [query, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, dateRange]);
 
     // 4. Calculate Global Date Range
     const displayDateRange = useMemo(() => {
@@ -712,7 +722,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                         type="date"
                                         value={dateRange.start}
                                         onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                                        className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                                        className="custom-date-input px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
                                     />
                                 </div>
                                 <span className="text-slate-400 font-bold">-</span>
@@ -721,7 +731,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                         type="date"
                                         value={dateRange.end}
                                         onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                                        className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                                        className="custom-date-input px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
                                     />
                                 </div>
                             </div>
@@ -909,8 +919,8 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                     <div className="flex items-center gap-3">
                                                         <MonthVisualizer
                                                             orders={customer.orders}
-                                                            minDate={dateRange.min}
-                                                            maxDate={dateRange.max}
+                                                            minDate={displayDateRange.min}
+                                                            maxDate={displayDateRange.max}
                                                             onClick={handleMonthClick(customer)}
                                                         />
                                                         <button

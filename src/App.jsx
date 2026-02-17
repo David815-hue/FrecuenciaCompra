@@ -67,8 +67,10 @@ function App() {
           error: null
         });
         console.log(`Loaded ${result.count} customers from cloud`);
+        return { success: true, hasData: true, count: result.count };
       } else {
         setSyncStatus(prev => ({ ...prev, isLoading: false }));
+        return { success: true, hasData: false, count: 0 };
       }
     } catch (error) {
       console.error('Error loading from cloud:', error);
@@ -77,6 +79,7 @@ function App() {
         isLoading: false,
         error: error.message
       });
+      return { success: false, hasData: false, error: error.message };
     }
   };
 
@@ -406,6 +409,7 @@ function App() {
                 <FileUpload
                   onFilesUploaded={handleFilesUploaded}
                   currentUser={authState.profile}
+                  onGoToDashboard={loadFromCloud}
                 />
               )}
             </motion.div>

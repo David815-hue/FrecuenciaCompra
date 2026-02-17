@@ -85,7 +85,39 @@ h6 {
     inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
 }
 
+
 .glass-hover-dark:hover {
   box-shadow: 0 25px 70px 0 rgba(0, 0, 0, 0.7),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Custom Date Input Styling */
+.custom-date-input {
+  min-width: 130px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.custom-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+  filter: invert(0.5) sepia(1) saturate(5) hue-rotate(200deg);
+  transition: all 0.2s ease, box-shadow 0.2s ease;
+  background-size: contain;
+  margin-left: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background-color: rgba(99, 102, 241, 0.08);
+}
+
+.custom-date-input:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  transform: scale(1.05);
+  background-color: rgba(99, 102, 241, 0.16);
+  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.22);
+}
+
+.dark .custom-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1) sepia(0) saturate(1) hue-rotate(200deg) brightness(1.8);
+  background-color: rgba(99, 102, 241, 0.18);
 }

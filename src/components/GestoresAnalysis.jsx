@@ -378,14 +378,14 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                             type="date"
                             value={dateRange.start}
                             onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                            className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                            className="custom-date-input px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
                         />
                         <span className="text-slate-400 font-bold">-</span>
                         <input
                             type="date"
                             value={dateRange.end}
                             onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                            className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                            className="custom-date-input px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
                         />
                     </div>
                 </div>
@@ -865,92 +865,95 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                 )}
 
                 {/* Month Details Modal */}
-                <AnimatePresence>
-                    {selectedMonthData && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-                            onClick={() => setSelectedMonthData(null)}
-                        >
+                {createPortal(
+                    <AnimatePresence>
+                        {selectedMonthData && (
                             <motion.div
-                                initial={{ scale: 0.95, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.95, opacity: 0 }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden border border-white/20 dark:border-slate-700 flex flex-col"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+                                onClick={() => setSelectedMonthData(null)}
                             >
-                                {/* Header */}
-                                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                                    <div>
-                                        <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                            <Calendar className="text-indigo-500" size={24} />
-                                            Detalle de Pedidos
-                                        </h3>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                                            {selectedMonthData.monthLabel}
-                                        </p>
+                                <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.95, opacity: 0 }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden border border-white/20 dark:border-slate-700 flex flex-col"
+                                >
+                                    {/* Header */}
+                                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                                <Calendar className="text-indigo-500" size={24} />
+                                                Detalle de Pedidos
+                                            </h3>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                                {selectedMonthData.monthLabel}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setSelectedMonthData(null)}
+                                            className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 dark:text-slate-400"
+                                        >
+                                            <ChevronDown size={24} className="rotate-180" />
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() => setSelectedMonthData(null)}
-                                        className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 dark:text-slate-400"
-                                    >
-                                        <ChevronDown size={24} className="rotate-180" /> {/* Using Chevron as close for now or X if imported */}
-                                    </button>
-                                </div>
 
-                                {/* Content */}
-                                <div className="overflow-y-auto p-6 custom-scrollbar">
-                                    <div className="space-y-4">
-                                        {(selectedMonthData.orders || []).map((order, idx) => (
-                                            <div key={idx} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50 hover:border-indigo-200 dark:hover:border-indigo-800 transition-colors">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <div>
-                                                        <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                                            #{order.orderId}
-                                                            <span className="text-xs font-normal px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-full">
-                                                                {format(new Date(order.orderDate), 'dd MMM yyyy', { locale: es })}
-                                                            </span>
+                                    {/* Content */}
+                                    <div className="overflow-y-auto p-6 custom-scrollbar">
+                                        <div className="space-y-4">
+                                            {(selectedMonthData.orders || []).map((order, idx) => (
+                                                <div key={idx} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700/50 hover:border-indigo-200 dark:hover:border-indigo-800 transition-colors">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                                                #{order.orderId}
+                                                                <span className="text-xs font-normal px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-full">
+                                                                    {format(new Date(order.orderDate), 'dd MMM yyyy', { locale: es })}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="font-bold text-emerald-600 dark:text-emerald-400">
+                                                            L. {parseFloat(order.totalAmount).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
                                                         </div>
                                                     </div>
-                                                    <div className="font-bold text-emerald-600 dark:text-emerald-400">
-                                                        L. {parseFloat(order.totalAmount).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
-                                                    </div>
+
+                                                    {/* Items if available */}
+                                                    {order.items && order.items.length > 0 ? (
+                                                        <div className="mt-3 space-y-1">
+                                                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Productos:</div>
+                                                            {order.items.map((item, i) => (
+                                                                <div key={i} className="flex justify-between text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700/50 last:border-0 pb-1 last:pb-0">
+                                                                    <span className="truncate pr-4 flex-1">{item.description}</span>
+                                                                    <span className="font-mono text-xs opacity-70">x{item.quantity}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-xs text-slate-400 italic">No hay detalle de productos disponible</div>
+                                                    )}
                                                 </div>
-
-                                                {/* Items if available */}
-                                                {order.items && order.items.length > 0 ? (
-                                                    <div className="mt-3 space-y-1">
-                                                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Productos:</div>
-                                                        {order.items.map((item, i) => (
-                                                            <div key={i} className="flex justify-between text-sm text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-700/50 last:border-0 pb-1 last:pb-0">
-                                                                <span className="truncate pr-4 flex-1">{item.description}</span>
-                                                                <span className="font-mono text-xs opacity-70">x{item.quantity}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-xs text-slate-400 italic">No hay detalle de productos disponible</div>
-                                                )}
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
 
-                                {/* Footer Summary */}
-                                <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-sm">
-                                    <span className="text-slate-500 dark:text-slate-400">
-                                        Total en este mes:
-                                    </span>
-                                    <span className="font-bold text-lg text-slate-900 dark:text-white">
-                                        L. {selectedMonthData.total.toLocaleString('es-HN', { minimumFractionDigits: 2 })}
-                                    </span>
-                                </div>
+                                    {/* Footer Summary */}
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-sm">
+                                        <span className="text-slate-500 dark:text-slate-400">
+                                            Total en este mes:
+                                        </span>
+                                        <span className="font-bold text-lg text-slate-900 dark:text-white">
+                                            L. {selectedMonthData.total.toLocaleString('es-HN', { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </motion.div>
                             </motion.div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                        )}
+                    </AnimatePresence>,
+                    document.body
+                )}
 
                 {/* Full Purchase History Modal */}
                 {/* Full Purchase History Modal */}

@@ -8,6 +8,7 @@ import ContributionModal from './ContributionModal';
 import ContributionGraph from './ContributionGraph';
 import RFMAnalysis from './RFMAnalysis';
 import GestoresAnalysis from './GestoresAnalysis';
+import GlassDatePicker from './GlassDatePicker';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -717,23 +718,15 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                 Rango de Fechas
                             </label>
                             <div className="flex items-center gap-2">
-                                <div className="relative">
-                                    <input
-                                        type="date"
-                                        value={dateRange.start}
-                                        onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                                        className="custom-date-input px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
-                                    />
-                                </div>
+                                <GlassDatePicker
+                                    value={dateRange.start}
+                                    onChange={(newStart) => setDateRange({ ...dateRange, start: newStart })}
+                                />
                                 <span className="text-slate-400 font-bold">-</span>
-                                <div className="relative">
-                                    <input
-                                        type="date"
-                                        value={dateRange.end}
-                                        onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                                        className="custom-date-input px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
-                                    />
-                                </div>
+                                <GlassDatePicker
+                                    value={dateRange.end}
+                                    onChange={(newEnd) => setDateRange({ ...dateRange, end: newEnd })}
+                                />
                             </div>
                         </div>
 

@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx'; // Import XLSX for export
 import { getZonas, getGestoresByZona } from '../config/gestores';
 import MonthVisualizer from './MonthVisualizer';
 import ContributionGraph from './ContributionGraph';
+import GlassDatePicker from './GlassDatePicker';
 
 const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null }) => {
     const [selectedMonthData, setSelectedMonthData] = useState(null);
@@ -374,18 +375,14 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                         Rango de Fechas
                     </label>
                     <div className="flex items-center gap-2">
-                        <input
-                            type="date"
+                        <GlassDatePicker
                             value={dateRange.start}
-                            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                            className="custom-date-input px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                            onChange={(newStart) => setDateRange({ ...dateRange, start: newStart })}
                         />
                         <span className="text-slate-400 font-bold">-</span>
-                        <input
-                            type="date"
+                        <GlassDatePicker
                             value={dateRange.end}
-                            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                            className="custom-date-input px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 dark:focus:border-indigo-500 transition-all shadow-sm hover:border-slate-300 dark:hover:border-slate-600"
+                            onChange={(newEnd) => setDateRange({ ...dateRange, end: newEnd })}
                         />
                     </div>
                 </div>

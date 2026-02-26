@@ -255,6 +255,14 @@ function App() {
 
   const isAdmin = authState.profile.role === 'admin';
   const isGestora = authState.profile.role === 'gestora';
+  const formattedLastSync = syncStatus.lastSync
+    ? new Date(syncStatus.lastSync).toLocaleString('es-HN', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+    : null;
 
   return (
     <div className="antialiased text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 min-h-screen font-sans relative selection:bg-indigo-500 selection:text-white transition-colors duration-500">
@@ -336,7 +344,7 @@ function App() {
 
                   {syncStatus.lastSync && (
                     <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                      {syncStatus.lastSync.toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' })}
+                      Ult. act. {formattedLastSync}
                     </span>
                   )}
                 </div>

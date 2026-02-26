@@ -12,6 +12,7 @@ import GlassDatePicker from './GlassDatePicker';
 
 const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null }) => {
     const [selectedMonthData, setSelectedMonthData] = useState(null);
+    const [isZoneLoading, setIsZoneLoading] = useState(false);
 
     // Initialize with restricted user filter if applicable
     const [selectedZone, setSelectedZone] = useState('all');
@@ -67,6 +68,21 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         setSearchTerm('');
     }, [isRestricted]);
 
+    const handleZoneSelect = useCallback((zone) => {
+        if (isRestricted) return;
+        setIsZoneLoading(true);
+        setSelectedZone(zone);
+        setSelectedGestor('all');
+        setIsFilterOpen(false);
+        setSearchTerm('');
+    }, [isRestricted]);
+
+    useEffect(() => {
+        if (!isZoneLoading) return;
+        const timer = setTimeout(() => setIsZoneLoading(false), 450);
+        return () => clearTimeout(timer);
+    }, [isZoneLoading, selectedZone, selectedGestor, dateRange]);
+
     // Group gestores by zone
     const gestoresByZone = useMemo(() => {
         const grouped = {};
@@ -115,16 +131,18 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
     // PERF: Filter data by selected gestor - optimized dependencies
     const filteredCustomers = useMemo(() => {
-        // PERF: Early return for 'all' - skip expensive grouping if not needed
-        if (selectedGestor === 'all') {
+        // Keep empty state only when user has not selected zone or gestor
+        if (selectedGestor === 'all' && selectedZone === 'all') {
             return [];
         }
 
         let filtered = data;
 
-        // Filter by gestor
+        // Filter by gestor or by whole zone
         if (selectedGestor !== 'all') {
             filtered = filtered.filter(order => order.gestorName === selectedGestor);
+        } else if (selectedZone !== 'all') {
+            filtered = filtered.filter(order => order.gestorZone === selectedZone);
         }
 
         // Filter by date range
@@ -186,7 +204,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
         return customers;
 
-    }, [data, selectedGestor, sortBy, sortDirection, dateRange]); // Added dateRange
+    }, [data, selectedGestor, selectedZone, sortBy, sortDirection, dateRange]); // Added dateRange
 
     // Filter customers by search term (Identidad, Nombre, Teléfono)
     const searchedCustomers = useMemo(() => {
@@ -442,23 +460,40 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
                                         return (
                                             <div key={zoneName} className="space-y-1">
-                                                <button
+                                                <div
                                                     onClick={() => toggleZone(zoneName)}
-                                                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-between group ${isZoneActive && selectedGestor === 'all'
+                                                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-between group cursor-pointer ${isZoneActive && selectedGestor === 'all'
                                                         ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800'
                                                         : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                                                         }`}
                                                 >
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-3 min-w-0">
                                                         <div className={`p-1.5 rounded-lg transition-colors ${isZoneActive ? 'bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
                                                             <MapPin size={14} />
                                                         </div>
-                                                        {zoneName}
+                                                        <span className="truncate">{zoneName}</span>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isZoneActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                            {gestores.length}
+                                                        </span>
                                                     </div>
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isZoneActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
-                                                        {gestores.length}
-                                                    </span>
-                                                </button>
+
+                                                    <div className="flex items-center gap-2 ml-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleZoneSelect(zoneName);
+                                                            }}
+                                                            className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wide transition-colors ${isZoneActive && selectedGestor === 'all'
+                                                                ? 'bg-indigo-600 text-white'
+                                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500'
+                                                                }`}
+                                                        >
+                                                            Ver zona
+                                                        </button>
+                                                        <ChevronDown size={14} className={`opacity-60 transition-transform ${isZoneExpanded ? 'rotate-180' : ''}`} />
+                                                    </div>
+                                                </div>
 
                                                 {/* Nested Gestores */}
                                                 {isZoneExpanded && (
@@ -581,7 +616,17 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                 </div>
 
                 {/* Customers Table */}
-                {filteredCustomers.length > 0 ? (
+                {isZoneLoading && selectedGestor === 'all' && selectedZone !== 'all' ? (
+                    <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-12 rounded-2xl border border-white/30 dark:border-slate-700/50 text-center">
+                        <div className="mx-auto mb-4 w-10 h-10 border-2 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
+                        <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300 mb-2">
+                            Cargando zona {selectedZone}...
+                        </h3>
+                        <p className="text-slate-500 dark:text-slate-400">
+                            Procesando clientes y pedidos, espera un momento.
+                        </p>
+                    </div>
+                ) : filteredCustomers.length > 0 ? (
                     <div className="bg-white/20 dark:bg-slate-900/20 backdrop-blur-3xl rounded-[2rem] shadow-[0_20px_60px_0_rgba(31,38,135,0.25)] dark:shadow-[0_20px_60px_0_rgba(0,0,0,0.6)] border border-white/30 dark:border-slate-700/40 overflow-hidden">
                         {/* Customer Search Bar */}
                         <div className="px-6 pt-5 pb-3">
@@ -851,12 +896,14 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                     <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-12 rounded-2xl border border-white/30 dark:border-slate-700/50 text-center">
                         <Users size={48} className="mx-auto mb-4 text-slate-300 dark:text-slate-600" />
                         <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300 mb-2">
-                            {selectedGestor === 'all' ? 'Selecciona un Gestor' : 'No hay clientes'}
+                            {selectedGestor === 'all' && selectedZone === 'all' ? 'Selecciona un Gestor o Zona' : 'No hay clientes'}
                         </h3>
                         <p className="text-slate-500 dark:text-slate-400">
-                            {selectedGestor === 'all'
-                                ? 'Para visualizar los datos, selecciona primero una Zona y luego un Gestor específico.'
-                                : `El gestor ${selectedGestor} no tiene clientes asignados.`}
+                            {selectedGestor === 'all' && selectedZone === 'all'
+                                ? 'Para visualizar los datos, selecciona una zona completa o un gestor específico.'
+                                : selectedGestor === 'all'
+                                    ? `La zona ${selectedZone} no tiene clientes asignados en el rango seleccionado.`
+                                    : `El gestor ${selectedGestor} no tiene clientes asignados.`}
                         </p>
                     </div>
                 )}

@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { performRFMAnalysis, getSegmentInfo } from '../utils/rfmAnalysis';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ScatterChart, Scatter, XAxis, YAxis, ZAxis, Legend, CartesianGrid } from 'recharts';
-import { Users, TrendingUp, Target, DollarSign, Download, Filter, X, Maximize2 } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid } from 'recharts';
+import { Users, TrendingUp, Target, DollarSign, Download, Filter, X, Maximize2, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -10,6 +10,19 @@ import { es } from 'date-fns/locale';
 const RFMAnalysis = ({ customers, searchQuery = '' }) => {
     const [selectedSegments, setSelectedSegments] = useState([]);
     const [fullscreenChart, setFullscreenChart] = useState(null); // 'pie' or 'scatter'
+    const [showCustomDbModal, setShowCustomDbModal] = useState(false);
+    const [customDbSelectedSegments, setCustomDbSelectedSegments] = useState([]);
+    const [customDbFilters, setCustomDbFilters] = useState({
+        filterBySegments: false,
+        onlyRecurring: false,
+        excludeChampions: false,
+        recencyMin: '',
+        recencyMax: '',
+        frequencyMin: '',
+        frequencyMax: '',
+        monetaryMin: '',
+        monetaryMax: ''
+    });
 
     // Perform RFM Analysis
     const rfmData = useMemo(() => {
@@ -21,7 +34,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
     const filteredCustomers = useMemo(() => {
         if (!rfmData) return [];
         if (selectedSegments.length === 0) return rfmData.customers;
-        return rfmData.customers.filter(c => selectedSegments.includes(c.rfm.segment));
+        return (rfmData?.customers || []).filter(c => selectedSegments.includes(c.rfm.segment));
     }, [rfmData, selectedSegments]);
 
     const toggleSegment = (segment) => {
@@ -32,15 +45,14 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
         }
     };
 
-    const handleExportSegment = (segment) => {
-        const segmentCustomers = rfmData.stats[segment].customers;
-        const exportData = segmentCustomers.map(c => ({
+    const exportCustomersToExcel = (customersToExport, sheetName, fileName) => {
+        const exportData = customersToExport.map(c => ({
             'Nombre': c.name,
             'Email': c.email || '',
-            'Teléfono': c.phone || '',
+            'Telefono': c.phone || '',
             'Ciudad': c.city || '',
             'Identidad': c.identity || '',
-            'Recencia (días)': c.rfm.recency,
+            'Recencia (dias)': c.rfm.recency,
             'Frecuencia (pedidos)': c.rfm.frequency,
             'Monetario (L.)': c.rfm.monetary,
             'Score R': c.rfm.recencyScore,
@@ -52,23 +64,24 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, segment);
-        XLSX.writeFile(wb, `RFM_${segment}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, fileName);
     };
 
-    if (!rfmData || rfmData.totalCustomers === 0) {
-        return (
-            <div className="flex items-center justify-center h-64 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700">
-                <p className="text-slate-500 dark:text-slate-400">No hay datos suficientes para análisis RFM</p>
-            </div>
+    const handleExportSegment = (segment) => {
+        const segmentCustomers = rfmData.stats[segment].customers;
+        exportCustomersToExcel(
+            segmentCustomers,
+            segment,
+            `RFM_${segment}_${new Date().toISOString().split('T')[0]}.xlsx`
         );
-    }
+    };
 
     // Prepare data for charts
-    const pieData = Object.entries(rfmData.stats)
+    const pieData = Object.entries(rfmData?.stats || {})
         .map(([segment, data]) => ({
-            name: data.info.name, // Use translated name
-            originalSegment: segment, // Keep original for reference
+            name: data.info.name,
+            originalSegment: segment,
             value: data.count,
             percentage: data.percentage,
             info: data.info
@@ -76,7 +89,6 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
         .sort((a, b) => a.info.priority - b.info.priority);
 
     const scatterData = filteredCustomers.map(c => {
-        // Find the most recent order date
         const lastPurchaseDate = c.orders.reduce((latest, order) => {
             const orderDate = new Date(order.orderDate);
             return orderDate > latest ? orderDate : latest;
@@ -89,11 +101,96 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             segment: c.rfm.segment,
             name: c.name,
             phone: c.phone || 'No disponible',
-            lastPurchaseDate: lastPurchaseDate,
+            lastPurchaseDate,
             monetaryScore: c.rfm.monetaryScore,
             info: getSegmentInfo(c.rfm.segment)
         };
     });
+
+    const availableSegments = Object.entries(rfmData?.stats || {})
+        .sort(([, a], [, b]) => a.info.priority - b.info.priority)
+        .map(([segment]) => segment);
+
+    const matchesRange = (value, min, max) => {
+        if (min !== '' && value < Number(min)) return false;
+        if (max !== '' && value > Number(max)) return false;
+        return true;
+    };
+
+    const customDbValidation = useMemo(() => {
+        const errors = [];
+        const minMaxPairs = [
+            ['Recencia', customDbFilters.recencyMin, customDbFilters.recencyMax],
+            ['Frecuencia', customDbFilters.frequencyMin, customDbFilters.frequencyMax],
+            ['Monetario', customDbFilters.monetaryMin, customDbFilters.monetaryMax]
+        ];
+
+        minMaxPairs.forEach(([label, min, max]) => {
+            if (min !== '' && Number(min) < 0) {
+                errors.push(`${label}: el minimo no puede ser negativo`);
+            }
+            if (max !== '' && Number(max) < 0) {
+                errors.push(`${label}: el maximo no puede ser negativo`);
+            }
+            if (min !== '' && max !== '' && Number(min) > Number(max)) {
+                errors.push(`${label}: el minimo no puede ser mayor al maximo`);
+            }
+        });
+
+        if (customDbFilters.filterBySegments && customDbSelectedSegments.length === 0) {
+            errors.push('Selecciona al menos un segmento o desactiva el filtro por segmentos');
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }, [customDbFilters, customDbSelectedSegments]);
+
+    const customDbCustomers = useMemo(() => {
+        return (rfmData?.customers || []).filter((customer) => {
+            const { rfm } = customer;
+
+            if (customDbFilters.onlyRecurring && rfm.frequency < 2) return false;
+            if (customDbFilters.excludeChampions && rfm.segment === 'Champions') return false;
+            if (customDbFilters.filterBySegments && !customDbSelectedSegments.includes(rfm.segment)) return false;
+
+            if (!matchesRange(rfm.recency, customDbFilters.recencyMin, customDbFilters.recencyMax)) return false;
+            if (!matchesRange(rfm.frequency, customDbFilters.frequencyMin, customDbFilters.frequencyMax)) return false;
+            if (!matchesRange(rfm.monetary, customDbFilters.monetaryMin, customDbFilters.monetaryMax)) return false;
+
+            return true;
+        });
+    }, [rfmData, customDbFilters, customDbSelectedSegments]);
+    const openCustomDbModal = () => {
+        if (customDbSelectedSegments.length === 0) {
+            setCustomDbSelectedSegments(availableSegments);
+        }
+        setShowCustomDbModal(true);
+    };
+
+    const resetCustomDbFilters = () => {
+        setCustomDbFilters({
+            filterBySegments: false,
+            onlyRecurring: false,
+            excludeChampions: false,
+            recencyMin: '',
+            recencyMax: '',
+            frequencyMin: '',
+            frequencyMax: '',
+            monetaryMin: '',
+            monetaryMax: ''
+        });
+        setCustomDbSelectedSegments(availableSegments);
+    };
+
+    const toggleCustomDbSegment = (segment) => {
+        if (customDbSelectedSegments.includes(segment)) {
+            setCustomDbSelectedSegments(customDbSelectedSegments.filter(s => s !== segment));
+            return;
+        }
+        setCustomDbSelectedSegments([...customDbSelectedSegments, segment]);
+    };
 
     // Custom tooltip for pie chart
     const PieTooltip = ({ active, payload }) => {
@@ -134,6 +231,14 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             </div>
         );
     };
+
+    if (!rfmData || rfmData.totalCustomers === 0) {
+        return (
+            <div className="flex items-center justify-center h-64 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700">
+                <p className="text-slate-500 dark:text-slate-400">No hay datos suficientes para analisis RFM</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -343,7 +448,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {Object.entries(rfmData.stats)
+                    {Object.entries(rfmData?.stats || {})
                         .sort(([, a], [, b]) => a.info.priority - b.info.priority)
                         .map(([segment, data]) => {
                             const isSelected = selectedSegments.includes(segment);
@@ -414,43 +519,224 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                 </div>
             </motion.div>
 
-            {/* Export All Except Champions */}
-            <div className="flex justify-end mt-2">
+            {/* Export Options */}
+            <div className="flex flex-col sm:flex-row justify-end gap-3 mt-2">
+                <button
+                    onClick={openCustomDbModal}
+                    className="text-indigo-600 dark:text-indigo-400 text-sm font-medium hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center gap-1"
+                >
+                    <Filter size={14} />
+                    Crear tu propia BD
+                </button>
                 <button
                     onClick={() => {
                         const allExceptChampions = [];
-                        Object.entries(rfmData.stats).forEach(([segment, data]) => {
+                        Object.entries(rfmData?.stats || {}).forEach(([segment, data]) => {
                             if (segment !== 'Champions') {
                                 allExceptChampions.push(...data.customers);
                             }
                         });
 
-                        const exportData = allExceptChampions.map(c => ({
-                            'Nombre': c.name,
-                            'Email': c.email || '',
-                            'Teléfono': c.phone || '',
-                            'Ciudad': c.city || '',
-                            'Identidad': c.identity || '',
-                            'Recencia (días)': c.rfm.recency,
-                            'Frecuencia (pedidos)': c.rfm.frequency,
-                            'Monetario (L.)': c.rfm.monetary,
-                            'Score R': c.rfm.recencyScore,
-                            'Score F': c.rfm.frequencyScore,
-                            'Score M': c.rfm.monetaryScore,
-                            'Score Total': c.rfm.totalScore,
-                            'Segmento': c.rfm.segment
-                        }));
-
-                        const ws = XLSX.utils.json_to_sheet(exportData);
-                        const wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, 'Sin Campeones');
-                        XLSX.writeFile(wb, `RFM_Sin_Campeones_${new Date().toISOString().split('T')[0]}.xlsx`);
+                        exportCustomersToExcel(
+                            allExceptChampions,
+                            'Sin Campeones',
+                            `RFM_Sin_Campeones_${new Date().toISOString().split('T')[0]}.xlsx`
+                        );
                     }}
                     className="text-emerald-600 dark:text-emerald-500 text-sm font-medium hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors flex items-center gap-1"
                 >
                     Descargar BD (Excepto Campeones)
                 </button>
             </div>
+
+            {/* Custom DB Modal */}
+            {showCustomDbModal && (
+                <div
+                    className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-start justify-center p-4 pt-8 overflow-y-auto"
+                    onClick={() => setShowCustomDbModal(false)}
+                >
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="relative overflow-hidden bg-gradient-to-br from-white/95 to-slate-100/90 dark:from-slate-900/95 dark:to-slate-950/90 rounded-3xl p-6 md:p-8 max-w-4xl w-full my-8 shadow-[0_24px_80px_-20px_rgba(15,23,42,0.75)] border border-white/30 dark:border-slate-700/60"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.22),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.16),transparent_40%)]" />
+                        <div className="flex items-start justify-between gap-4 mb-6">
+                            <div>
+                                <h3 className="text-xl md:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                                    Crear tu propia BD
+                                </h3>
+                                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-2">
+                                    Sin crear segmentos nuevos. Solo filtra por variables RFM y exporta.
+                                    <span
+                                        className="inline-flex items-center text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
+                                        title="En esta vista solo cuentan Recencia, Frecuencia y Monetario. Los scores R/F/M/Total no se usan en el filtro."
+                                    >
+                                        <Info size={14} />
+                                    </span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowCustomDbModal(false)}
+                                className="p-2 rounded-full bg-white/70 dark:bg-slate-800/70 hover:bg-white dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-all border border-slate-200/60 dark:border-slate-700/70"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5 relative">
+                            <label className="text-sm">
+                                <span className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Filtrar por segmentos</span>
+                                <select
+                                    value={customDbFilters.filterBySegments ? 'yes' : 'no'}
+                                    onChange={(e) => setCustomDbFilters(prev => ({ ...prev, filterBySegments: e.target.value === 'yes' }))}
+                                    className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 dark:focus:border-indigo-500 transition-all"
+                                >
+                                    <option value="no">No</option>
+                                    <option value="yes">Si</option>
+                                </select>
+                            </label>
+                            <label className="text-sm">
+                                <span className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Solo recurrentes (2+ pedidos)</span>
+                                <select
+                                    value={customDbFilters.onlyRecurring ? 'yes' : 'no'}
+                                    onChange={(e) => setCustomDbFilters(prev => ({ ...prev, onlyRecurring: e.target.value === 'yes' }))}
+                                    className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 dark:focus:border-indigo-500 transition-all"
+                                >
+                                    <option value="no">No</option>
+                                    <option value="yes">Si</option>
+                                </select>
+                            </label>
+                            <label className="text-sm">
+                                <span className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Excluir campeones</span>
+                                <select
+                                    value={customDbFilters.excludeChampions ? 'yes' : 'no'}
+                                    onChange={(e) => setCustomDbFilters(prev => ({ ...prev, excludeChampions: e.target.value === 'yes' }))}
+                                    className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 dark:focus:border-indigo-500 transition-all"
+                                >
+                                    <option value="no">No</option>
+                                    <option value="yes">Si</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        {customDbFilters.filterBySegments && (
+                            <div className="mb-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/70 bg-white/40 dark:bg-slate-900/30 p-4">
+                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Segmentos a incluir</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {availableSegments.map((segment) => {
+                                        const info = getSegmentInfo(segment);
+                                        const isActive = customDbSelectedSegments.includes(segment);
+                                        return (
+                                            <button
+                                                key={segment}
+                                                onClick={() => toggleCustomDbSegment(segment)}
+                                                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${isActive
+                                                    ? 'text-white shadow-lg'
+                                                    : 'text-slate-700 dark:text-slate-300 bg-white/80 dark:bg-slate-800/70 border-slate-300/80 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600'
+                                                    }`}
+                                                style={isActive ? { backgroundColor: info.color, borderColor: info.color } : undefined}
+                                            >
+                                                {info.icon} {info.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                            {[
+                                {
+                                    label: 'Recencia (dias)',
+                                    minKey: 'recencyMin',
+                                    maxKey: 'recencyMax',
+                                    help: 'Dias desde la ultima compra. Menor recencia = cliente mas reciente.'
+                                },
+                                {
+                                    label: 'Frecuencia (pedidos)',
+                                    minKey: 'frequencyMin',
+                                    maxKey: 'frequencyMax',
+                                    help: 'Cantidad total de pedidos del cliente. Mayor frecuencia = compra mas seguido.'
+                                },
+                                {
+                                    label: 'Monetario (L.)',
+                                    minKey: 'monetaryMin',
+                                    maxKey: 'monetaryMax',
+                                    help: 'Monto total comprado en lempiras. Te ayuda a filtrar por valor economico.'
+                                }
+                            ].map(({ label, minKey, maxKey, help }) => (
+                                <div key={label} className="bg-white/45 dark:bg-slate-800/35 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+                                        <span>{label}</span>
+                                        <span
+                                            className="inline-flex text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
+                                            title={help}
+                                        >
+                                            <Info size={13} />
+                                        </span>
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            placeholder="Min"
+                                            value={customDbFilters[minKey]}
+                                            onChange={(e) => setCustomDbFilters(prev => ({ ...prev, [minKey]: e.target.value }))}
+                                            className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/85 dark:bg-slate-900/90 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 dark:focus:border-indigo-500 transition-all"
+                                        />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            placeholder="Max"
+                                            value={customDbFilters[maxKey]}
+                                            onChange={(e) => setCustomDbFilters(prev => ({ ...prev, [maxKey]: e.target.value }))}
+                                            className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/85 dark:bg-slate-900/90 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 dark:focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {customDbValidation.errors.length > 0 && (
+                            <div className="mt-4 bg-rose-50/90 dark:bg-rose-900/25 border border-rose-200 dark:border-rose-800 rounded-xl p-3">
+                                {customDbValidation.errors.map((error) => (
+                                    <p key={error} className="text-xs text-rose-700 dark:text-rose-300">{error}</p>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 relative">
+                            <p className="text-sm text-slate-600 dark:text-slate-300">
+                                Resultado actual: <span className="font-bold text-slate-900 dark:text-white">{customDbCustomers.length}</span> clientes
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={resetCustomDbFilters}
+                                    className="px-4 py-2 rounded-xl text-sm font-medium bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+                                >
+                                    Limpiar
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        exportCustomersToExcel(
+                                            customDbCustomers,
+                                            'Mi BD',
+                                            `RFM_Mi_BD_${new Date().toISOString().split('T')[0]}.xlsx`
+                                        );
+                                    }}
+                                    disabled={!customDbValidation.isValid || customDbCustomers.length === 0}
+                                    className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-500 hover:from-indigo-700 hover:via-indigo-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-2"
+                                >
+                                    <Download size={14} />
+                                    Descargar mi BD
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
 
             {/* Fullscreen Modal */}
             {

@@ -311,6 +311,66 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
         return { min: minDate, max: maxDate };
     }, [displayList]);
 
+    const handleClearAllFilters = () => {
+        setQuery('');
+        setOnlyRecurring(false);
+        setSelectedCities([]);
+        setMinQuantity('');
+        setTopSKUsFilter('all');
+        setDateRange({
+            start: '',
+            end: ''
+        });
+        setShowSuggestions(false);
+    };
+
+    const activeFilterChips = [];
+    if (query.trim()) {
+        activeFilterChips.push({
+            key: 'query',
+            label: `Busqueda: ${query.trim()}`,
+            onRemove: () => {
+                setQuery('');
+                setShowSuggestions(false);
+            }
+        });
+    }
+    if (onlyRecurring) {
+        activeFilterChips.push({
+            key: 'recurring',
+            label: 'Solo recurrentes',
+            onRemove: () => setOnlyRecurring(false)
+        });
+    }
+    selectedCities.forEach(city => {
+        activeFilterChips.push({
+            key: `city-${city}`,
+            label: city === 'TEGUCIGALPA D.C.' ? 'Ciudad: Tegucigalpa' : 'Ciudad: San Pedro Sula',
+            onRemove: () => setSelectedCities(prev => prev.filter(c => c !== city))
+        });
+    });
+    if (minQuantity !== '') {
+        activeFilterChips.push({
+            key: 'minQuantity',
+            label: `Min: ${minQuantity} unidades`,
+            onRemove: () => setMinQuantity('')
+        });
+    }
+    if (dateRange.start || dateRange.end) {
+        activeFilterChips.push({
+            key: 'dateRange',
+            label: `Fecha: ${dateRange.start || 'inicio'} - ${dateRange.end || 'hoy'}`,
+            onRemove: () => setDateRange({ start: '', end: '' })
+        });
+    }
+    if (topSKUsFilter !== 'all') {
+        activeFilterChips.push({
+            key: 'topSkus',
+            label: `Filtro: ${topSKUsFilter.toUpperCase()}`,
+            onRemove: () => setTopSKUsFilter('all')
+        });
+    }
+
 
     const handleExport = () => {
         if (viewMode === 'gestores' && gestoresRef.current) {
@@ -754,15 +814,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             <motion.button
                                 initial={{ scale: 0.9, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
-                                onClick={() => {
-                                    setSelectedCities([]);
-                                    setMinQuantity('');
-                                    setTopSKUsFilter('all');
-                                    setDateRange({
-                                        start: '',
-                                        end: ''
-                                    });
-                                }}
+                                onClick={handleClearAllFilters}
                                 className="flex items-center gap-1.5 px-4 py-2 mt-6 md:mt-0 md:ml-auto bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-full text-sm font-semibold transition-all border border-rose-200 dark:border-rose-500/30"
                             >
                                 <X size={14} />
@@ -772,6 +824,34 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                     </motion.div>
                 )
                 }
+
+                {/* Active Filters Chips */}
+                {viewMode !== 'gestores' && activeFilterChips.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="px-4 flex flex-wrap items-center gap-2"
+                    >
+                        {activeFilterChips.map(chip => (
+                            <button
+                                key={chip.key}
+                                onClick={chip.onRemove}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                                title="Quitar filtro"
+                            >
+                                <span>{chip.label}</span>
+                                <X size={12} />
+                            </button>
+                        ))}
+                        <button
+                            onClick={handleClearAllFilters}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors"
+                        >
+                            <X size={12} />
+                            Limpiar todo
+                        </button>
+                    </motion.div>
+                )}
             </header >
 
             {/* Conditional Content: Table, RFM or Gestores */}

@@ -206,16 +206,36 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
     }, [data, selectedGestor, selectedZone, sortBy, sortDirection, dateRange]); // Added dateRange
 
-    // Filter customers by search term (Identidad, Nombre, Teléfono)
+    // Filter customers by search term (Identidad, Nombre, Teléfono, SKU, Descripción)
     const searchedCustomers = useMemo(() => {
         if (!customerSearchTerm.trim()) return filteredCustomers;
 
-        const term = customerSearchTerm.toLowerCase().trim();
+        const terms = customerSearchTerm
+            .toLowerCase()
+            .split(/[\n,]+/)
+            .map(t => t.trim())
+            .filter(Boolean);
+
+        if (terms.length === 0) return filteredCustomers;
+
         return filteredCustomers.filter(customer => {
-            const nameMatch = (customer.name || '').toLowerCase().includes(term);
-            const identityMatch = (customer.identity || '').toLowerCase().includes(term);
-            const phoneMatch = (customer.phone || '').toLowerCase().includes(term);
-            return nameMatch || identityMatch || phoneMatch;
+            const name = (customer.name || '').toLowerCase();
+            const identity = (customer.identity || '').toLowerCase();
+            const phone = (customer.phone || '').toLowerCase();
+
+            const basicMatch = terms.some(term =>
+                name.includes(term) || identity.includes(term) || phone.includes(term)
+            );
+
+            const productMatch = customer.orders.some(order =>
+                (order.items || []).some(item => {
+                    const sku = String(item.sku || '').toLowerCase();
+                    const description = String(item.description || '').toLowerCase();
+                    return terms.some(term => sku.includes(term) || description.includes(term));
+                })
+            );
+
+            return basicMatch || productMatch;
         });
     }, [filteredCustomers, customerSearchTerm]);
 
@@ -637,7 +657,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                 <input
                                     type="text"
                                     className="w-full pl-11 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 focus:border-indigo-200 dark:focus:border-indigo-500/30 transition-all outline-none text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium text-sm"
-                                    placeholder="Buscar por Identidad, Nombre o Teléfono..."
+                                    placeholder="Buscar por Identidad, Nombre, Teléfono, SKU o descripción..."
                                     value={customerSearchTerm}
                                     onChange={(e) => setCustomerSearchTerm(e.target.value)}
                                 />

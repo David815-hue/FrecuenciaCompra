@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
@@ -214,6 +214,28 @@ function App() {
     }
   };
 
+  const formattedLastOrderDate = (() => {
+    if (!data || data.length === 0) return null;
+
+    let latestTime = null;
+    data.forEach((order) => {
+      const date = new Date(order.orderDate);
+      if (!isNaN(date.getTime())) {
+        if (latestTime === null || date.getTime() > latestTime) {
+          latestTime = date.getTime();
+        }
+      }
+    });
+
+    if (latestTime === null) return null;
+    return new Date(latestTime).toLocaleString('es-HN', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  })();
+
   // Loading state during auth initialization
   if (authState.loading || (isProcessing || syncStatus.isLoading)) {
     return (
@@ -255,28 +277,6 @@ function App() {
 
   const isAdmin = authState.profile.role === 'admin';
   const isGestora = authState.profile.role === 'gestora';
-  const formattedLastOrderDate = useMemo(() => {
-    if (!data || data.length === 0) return null;
-
-    let latestTime = null;
-    data.forEach((order) => {
-      const date = new Date(order.orderDate);
-      if (!isNaN(date.getTime())) {
-        if (latestTime === null || date.getTime() > latestTime) {
-          latestTime = date.getTime();
-        }
-      }
-    });
-
-    if (latestTime === null) return null;
-    return new Date(latestTime).toLocaleString('es-HN', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }, [data]);
-
   return (
     <div className="antialiased text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 min-h-screen font-sans relative selection:bg-indigo-500 selection:text-white transition-colors duration-500">
       {/* Dynamic Background */}

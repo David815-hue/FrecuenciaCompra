@@ -357,6 +357,13 @@ export const saveCustomersToSupabaseIncremental = async (orders) => {
                 });
 
                 newCustomer.orders.forEach(order => {
+                    // Check if we are overwriting an existing order
+                    if (existingOrdersMap[order.orderId]) {
+                        console.log(`⚠️ Overwriting duplicate order! Customer: ${newCustomer.name || newCustomer.email || newCustomer.phone}`);
+                        console.log(`   - Order ID: ${order.orderId}`);
+                        console.log(`   - Old Date: ${existingOrdersMap[order.orderId].orderDate} | Old Total: ${existingOrdersMap[order.orderId].totalAmount}`);
+                        console.log(`   - New Date: ${order.orderDate} | New Total: ${order.totalAmount}`);
+                    }
                     existingOrdersMap[order.orderId] = order;
                 });
 

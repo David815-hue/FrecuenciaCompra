@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const RFMAnalysis = ({ customers, searchQuery = '' }) => {
+const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
     const [selectedSegments, setSelectedSegments] = useState([]);
     const [fullscreenChart, setFullscreenChart] = useState(null); // 'pie' or 'scatter'
     const [showCustomDbModal, setShowCustomDbModal] = useState(false);
@@ -73,6 +73,12 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
         return performRFMAnalysis(customers, new Date(), searchQuery);
     }, [customers, searchQuery]);
 
+    // Perform overall RFM Analysis for the unfiltered cohort (for database downloads by period/SKU)
+    const allRfmData = useMemo(() => {
+        if (!allCustomers || allCustomers.length === 0) return null;
+        return performRFMAnalysis(allCustomers, new Date(), '');
+    }, [allCustomers]);
+
     // Computed range dates when months count filter is active
     const computedMonthsRange = useMemo(() => {
         const end = new Date();
@@ -86,7 +92,12 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
 
     // Filter customers uniquely by date range and SKU (any purchase within range matching targets, unique customer)
     const filteredCustomersByDate = useMemo(() => {
-        if (!rfmData || !rfmData.customers) return [];
+        const baseCustomers = (allRfmData && allRfmData.customers)
+            ? allRfmData.customers
+            : (rfmData && rfmData.customers)
+                ? rfmData.customers
+                : [];
+        if (baseCustomers.length === 0) return [];
 
         let start, end;
         if (monthsFilterType === 'months') {
@@ -115,7 +126,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                 .filter(Boolean);
         }
 
-        return rfmData.customers.filter(customer => {
+        return baseCustomers.filter(customer => {
             if (!customer.orders) return false;
             return customer.orders.some(order => {
                 const orderDate = new Date(order.orderDate);
@@ -134,7 +145,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                 return true;
             });
         });
-    }, [rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate, skuFilterType, skuSingle, skuListText, searchQuery]);
+    }, [allRfmData, rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate, skuFilterType, skuSingle, skuListText, searchQuery]);
 
     // Filter customers by selected segments
     const filteredCustomers = useMemo(() => {

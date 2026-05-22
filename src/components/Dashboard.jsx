@@ -136,6 +136,35 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
         return Object.values(map);
     }, [filteredData]);
 
+    // Group all raw data by Customer (for SKU-agnostic RFM and exporting)
+    const allCustomers = useMemo(() => {
+        const map = {};
+        data.forEach(order => {
+            const key = order.email || order.phone || order.name;
+            if (!key) return;
+
+            if (!map[key]) {
+                map[key] = {
+                    name: order.name,
+                    email: order.email,
+                    phone: order.phone,
+                    identity: order.identity || 'No se encontró',
+                    city: order.city,
+                    orders: [],
+                    totalInvestment: 0
+                };
+            }
+            map[key].orders.push(order);
+            map[key].totalInvestment += (order.totalAmount || 0);
+
+            if (order.identity && order.identity !== 'No se encontró' && (map[key].identity === 'No se encontró')) {
+                map[key].identity = order.identity;
+            }
+        });
+
+        return Object.values(map);
+    }, [data]);
+
     // Calculate Top SKUs from all data
     const topSKUs = useMemo(() => {
         const skuMap = {};
@@ -1170,7 +1199,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                         className="mb-8"
                     >
-                        <RFMAnalysis customers={displayList} searchQuery={query} />
+                        <RFMAnalysis customers={displayList} allCustomers={allCustomers} searchQuery={query} />
                     </motion.div>
                 ) : (
                     /* Gestores Analysis View */

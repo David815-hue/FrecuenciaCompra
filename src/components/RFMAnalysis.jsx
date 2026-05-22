@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { performRFMAnalysis, getSegmentInfo } from '../utils/rfmAnalysis';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid } from 'recharts';
@@ -37,6 +38,11 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
         return new Date().toISOString().split('T')[0];
     });
 
+    // SKU filtering states
+    const [skuFilterType, setSkuFilterType] = useState('any'); // 'any' | 'single' | 'list'
+    const [skuSingle, setSkuSingle] = useState('');
+    const [skuListText, setSkuListText] = useState('');
+
     // Perform RFM Analysis
     const rfmData = useMemo(() => {
         if (!customers || customers.length === 0) return null;
@@ -54,7 +60,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
         };
     }, [monthsCount]);
 
-    // Filter customers uniquely by date range (any purchase within range, any SKU, unique customer)
+    // Filter customers uniquely by date range and SKU (any purchase within range matching targets, unique customer)
     const filteredCustomersByDate = useMemo(() => {
         if (!rfmData || !rfmData.customers) return [];
 
@@ -69,15 +75,37 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             end.setHours(23, 59, 59, 999);
         }
 
+        // Parse target SKUs
+        let targets = [];
+        if (skuFilterType === 'single' && skuSingle.trim()) {
+            targets = [skuSingle.trim().toUpperCase()];
+        } else if (skuFilterType === 'list' && skuListText.trim()) {
+            targets = skuListText
+                .split(/[\n,;\t]+/)
+                .map(s => s.trim().toUpperCase())
+                .filter(Boolean);
+        }
+
         return rfmData.customers.filter(customer => {
             if (!customer.orders) return false;
             return customer.orders.some(order => {
                 const orderDate = new Date(order.orderDate);
                 if (isNaN(orderDate.getTime())) return false;
-                return orderDate >= start && orderDate <= end;
+                if (orderDate < start || orderDate > end) return false;
+
+                // SKU Filter
+                if (skuFilterType !== 'any' && targets.length > 0) {
+                    const items = order.items || [];
+                    return items.some(item => {
+                        const itemSku = (item.sku || '').trim().toUpperCase();
+                        const itemDesc = (item.description || '').trim().toUpperCase();
+                        return targets.some(t => itemSku === t || itemSku.includes(t) || itemDesc.includes(t));
+                    });
+                }
+                return true;
             });
         });
-    }, [rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate]);
+    }, [rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate, skuFilterType, skuSingle, skuListText]);
 
     // Filter customers by selected segments
     const filteredCustomers = useMemo(() => {
@@ -138,35 +166,99 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             end.setHours(23, 59, 59, 999);
         }
 
+        // Parse target SKUs
+        let targets = [];
+        if (skuFilterType === 'single' && skuSingle.trim()) {
+            targets = [skuSingle.trim().toUpperCase()];
+        } else if (skuFilterType === 'list' && skuListText.trim()) {
+            targets = skuListText
+                .split(/[\n,;\t]+/)
+                .map(s => s.trim().toUpperCase())
+                .filter(Boolean);
+        }
+
         const exportData = filteredCustomersByDate.map(c => {
+            // All orders within range
             const rangeOrders = c.orders.filter(order => {
                 const orderDate = new Date(order.orderDate);
                 return !isNaN(orderDate.getTime()) && orderDate >= start && orderDate <= end;
             });
 
+            // Filtered orders in range that contain matching SKU
+            const skuMatchedOrders = rangeOrders.filter(order => {
+                if (skuFilterType === 'any' || targets.length === 0) return true;
+                const items = order.items || [];
+                return items.some(item => {
+                    const itemSku = (item.sku || '').trim().toUpperCase();
+                    const itemDesc = (item.description || '').trim().toUpperCase();
+                    return targets.some(t => itemSku === t || itemSku.includes(t) || itemDesc.includes(t));
+                });
+            });
+
+            // Calculate total spent in range (all purchases)
             const rangeTotalSpent = rangeOrders.reduce((sum, order) => {
                 return sum + (parseFloat(order.totalAmount) || 0);
             }, 0);
+
+            // Calculate spent specifically on the matched SKUs in the range
+            let skuSpecificSpent = 0;
+            const matchedProductNames = new Set();
+            const matchedSkusList = new Set();
+
+            rangeOrders.forEach(order => {
+                const items = order.items || [];
+                items.forEach(item => {
+                    const itemSku = (item.sku || '').trim().toUpperCase();
+                    const itemDesc = (item.description || '').trim().toUpperCase();
+                    
+                    const isMatch = skuFilterType === 'any' || targets.length === 0 || targets.some(t => itemSku === t || itemSku.includes(t) || itemDesc.includes(t));
+                    
+                    if (isMatch) {
+                        const qty = parseFloat(item.quantity) || 1;
+                        const price = parseFloat(item.price) || 0;
+                        skuSpecificSpent += qty * price;
+                        
+                        if (item.description) matchedProductNames.add(item.description);
+                        if (item.sku) matchedSkusList.add(item.sku);
+                    }
+                });
+            });
 
             const rangeOrderDates = rangeOrders.map(o => new Date(o.orderDate)).filter(d => !isNaN(d));
             const latestRangeDate = rangeOrderDates.length > 0
                 ? new Date(Math.max(...rangeOrderDates))
                 : null;
 
-            return {
+            const skuMatchedOrderDates = skuMatchedOrders.map(o => new Date(o.orderDate)).filter(d => !isNaN(d));
+            const latestSkuMatchedDate = skuMatchedOrderDates.length > 0
+                ? new Date(Math.max(...skuMatchedOrderDates))
+                : null;
+
+            const row = {
                 'Nombre': c.name,
                 'Email': c.email || 'No disponible',
                 'Telefono': c.phone || 'No disponible',
                 'Ciudad': c.city || 'No disponible',
                 'Identidad': c.identity || 'No disponible',
-                'Pedidos en el Rango': rangeOrders.length,
-                'Total Gastado en el Rango (L.)': parseFloat(rangeTotalSpent.toFixed(2)),
-                'Ultima Compra en el Rango': latestRangeDate ? format(latestRangeDate, 'dd/MM/yyyy', { locale: es }) : 'N/A',
-                'Recencia Total (dias)': c.rfm.recency,
-                'Frecuencia Total (pedidos)': c.rfm.frequency,
-                'Monetario Total (L.)': c.rfm.monetary,
-                'Segmento RFM General': c.rfm.segment
             };
+
+            if (skuFilterType !== 'any' && targets.length > 0) {
+                row['Pedidos del SKU en Rango'] = skuMatchedOrders.length;
+                row['Gasto Estimado SKU en Rango (L.)'] = parseFloat(skuSpecificSpent.toFixed(2));
+                row['Última Compra SKU en Rango'] = latestSkuMatchedDate ? format(latestSkuMatchedDate, 'dd/MM/yyyy', { locale: es }) : 'N/A';
+                row['SKUs Comprados Coincidentes'] = [...matchedSkusList].join(', ') || 'N/A';
+                row['Productos Coincidentes'] = [...matchedProductNames].join(', ') || 'N/A';
+            }
+
+            row['Pedidos Totales en Rango'] = rangeOrders.length;
+            row['Gasto Total en Rango (L.)'] = parseFloat(rangeTotalSpent.toFixed(2));
+            row['Última Compra en Rango'] = latestRangeDate ? format(latestRangeDate, 'dd/MM/yyyy', { locale: es }) : 'N/A';
+            row['Recencia Total (dias)'] = c.rfm.recency;
+            row['Frecuencia Total (pedidos)'] = c.rfm.frequency;
+            row['Monetario Total (L.)'] = c.rfm.monetary;
+            row['Segmento RFM General'] = c.rfm.segment;
+
+            return row;
         });
 
         const ws = XLSX.utils.json_to_sheet(exportData);
@@ -174,8 +266,16 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
         const rangeStr = monthsFilterType === 'months' 
             ? `Ultimos_${monthsCount}_Meses` 
             : `Rango_${monthsStartDate}_a_${monthsEndDate}`;
+        
+        let skuStr = '';
+        if (skuFilterType === 'single' && skuSingle.trim()) {
+            skuStr = `_SKU_${skuSingle.trim()}`;
+        } else if (skuFilterType === 'list') {
+            skuStr = `_Lista_SKUs`;
+        }
+
         XLSX.utils.book_append_sheet(wb, ws, 'Clientes por Fecha');
-        XLSX.writeFile(wb, `Clientes_Unicos_${rangeStr}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(wb, `Clientes_Unicos_${rangeStr}${skuStr}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     // Prepare data for charts
@@ -847,22 +947,22 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             )}
 
             {/* Download By Months/Dates Modal */}
-            {showMonthsModal && (
+            {showMonthsModal && createPortal(
                 <div
-                    className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-start justify-center p-4 pt-8 overflow-y-auto"
+                    className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-4 pt-8 overflow-y-auto"
                     onClick={() => setShowMonthsModal(false)}
                 >
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="relative overflow-hidden bg-gradient-to-br from-white/95 to-slate-100/90 dark:from-slate-900/95 dark:to-slate-950/90 rounded-3xl p-6 md:p-8 max-w-xl w-full my-8 shadow-[0_24px_80px_-20px_rgba(15,23,42,0.75)] border border-white/30 dark:border-slate-700/60"
+                        className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-xl w-full my-8 shadow-[0_24px_80px_-20px_rgba(15,23,42,0.75)] border border-slate-200 dark:border-slate-800"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Radiant backgrounds */}
-                        <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.22),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.16),transparent_40%)]" />
+                        {/* Radiant background overlays */}
+                        <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.15),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.1),transparent_40%)]" />
                         
                         {/* Header */}
-                        <div className="flex items-start justify-between gap-4 mb-6">
+                        <div className="flex items-start justify-between gap-4 mb-6 relative">
                             <div>
                                 <h3 className="text-xl md:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                     <span className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
@@ -870,20 +970,20 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                     </span>
                                     Descargar Clientes por Período
                                 </h3>
-                                <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
+                                <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 mt-2">
                                     Exporta un listado de clientes únicos con compras registradas en el período seleccionado.
                                 </p>
                             </div>
                             <button
                                 onClick={() => setShowMonthsModal(false)}
-                                className="p-2 rounded-full bg-white/70 dark:bg-slate-800/70 hover:bg-white dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-all border border-slate-200/60 dark:border-slate-700/70"
+                                className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-all border border-slate-200 dark:border-slate-750"
                             >
                                 <X size={20} />
                             </button>
                         </div>
 
                         {/* Filter Tabs */}
-                        <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1.5 rounded-2xl mb-6 relative">
+                        <div className="flex bg-slate-100 dark:bg-slate-800/65 p-1.5 rounded-2xl mb-6 relative">
                             <button
                                 onClick={() => setMonthsFilterType('months')}
                                 className={`flex-1 py-2 px-3 text-xs md:text-sm font-semibold rounded-xl transition-all ${
@@ -911,7 +1011,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                             {monthsFilterType === 'months' ? (
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                                        <label className="block text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
                                             ¿Cuántos meses anteriores consultar?
                                         </label>
                                         <div className="flex items-center gap-4">
@@ -923,7 +1023,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                                 onChange={(e) => setMonthsCount(Number(e.target.value))}
                                                 className="flex-1 accent-blue-600 dark:accent-blue-500 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
                                             />
-                                            <span className="w-12 text-center font-extrabold text-lg text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-xl">
+                                            <span className="w-12 text-center font-extrabold text-sm md:text-lg text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-xl">
                                                 {monthsCount}
                                             </span>
                                         </div>
@@ -938,7 +1038,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                                                     monthsCount === num
                                                         ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
-                                                        : 'text-slate-700 dark:text-slate-300 bg-white/80 dark:bg-slate-800/70 border-slate-300/85 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'
+                                                        : 'text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'
                                                 }`}
                                             >
                                                 {num === 1 ? '1 mes' : `${num} meses`}
@@ -950,8 +1050,8 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                     <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100/60 dark:border-blue-900/35 rounded-2xl p-4 flex items-start gap-3">
                                         <span className="text-lg">ℹ️</span>
                                         <div>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">Rango de búsqueda calculado:</p>
-                                            <p className="text-sm font-semibold text-blue-700 dark:text-blue-400 mt-0.5">
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400">Rango de búsqueda calculado:</p>
+                                            <p className="text-xs md:text-sm font-semibold text-blue-700 dark:text-blue-400 mt-0.5">
                                                 Desde el {computedMonthsRange.start} hasta el {computedMonthsRange.end}
                                             </p>
                                         </div>
@@ -968,7 +1068,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                                 type="date"
                                                 value={monthsStartDate}
                                                 onChange={(e) => setMonthsStartDate(e.target.value)}
-                                                className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/85 dark:bg-slate-900/90 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white"
+                                                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3.5 py-2.5 text-xs md:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white"
                                             />
                                         </div>
                                         <div>
@@ -979,7 +1079,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                                 type="date"
                                                 value={monthsEndDate}
                                                 onChange={(e) => setMonthsEndDate(e.target.value)}
-                                                className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/85 dark:bg-slate-900/90 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white"
+                                                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3.5 py-2.5 text-xs md:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white"
                                             />
                                         </div>
                                     </div>
@@ -996,20 +1096,92 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                             )}
                         </div>
 
-                        {/* Footer summary & Download */}
-                        <div className="mt-8 pt-5 border-t border-slate-200/60 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
+                        {/* SKU Filtering Option Check */}
+                        <div className="border-t border-slate-200 dark:border-slate-850 pt-5 space-y-4 relative mb-6">
                             <div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
+                                <label className="block text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                    <span>🔍</span> Filtrar por Código de Producto (SKU)
+                                </label>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                    Filtra clientes únicos que hayan comprado los productos seleccionados en el período.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                {[
+                                    { type: 'any', label: 'Cualquier SKU', icon: '🛒' },
+                                    { type: 'single', label: 'Un SKU', icon: '🏷️' },
+                                    { type: 'list', label: 'Lista de SKUs', icon: '📋' }
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.type}
+                                        type="button"
+                                        onClick={() => setSkuFilterType(opt.type)}
+                                        className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 ${
+                                            skuFilterType === opt.type
+                                                ? 'bg-blue-500/10 border-blue-500 text-blue-700 dark:text-blue-400 font-bold shadow-sm'
+                                                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                                        }`}
+                                    >
+                                        <span className="text-lg">{opt.icon}</span>
+                                        <span className="text-[11px] font-semibold tracking-tight">{opt.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {skuFilterType === 'single' && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="space-y-1.5"
+                                >
+                                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                        Código SKU a buscar:
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={skuSingle}
+                                        onChange={(e) => setSkuSingle(e.target.value)}
+                                        placeholder="Ej: 742110058319"
+                                        className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3.5 py-2.5 text-xs md:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white"
+                                    />
+                                </motion.div>
+                            )}
+
+                            {skuFilterType === 'list' && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="space-y-1.5"
+                                >
+                                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                        Pega la lista de SKUs (separados por coma, espacio o renglón):
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        value={skuListText}
+                                        onChange={(e) => setSkuListText(e.target.value)}
+                                        placeholder="Ej:&#10;742110058319&#10;742110058320, 742110058321"
+                                        className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3.5 py-2.5 text-xs font-mono placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white"
+                                    />
+                                </motion.div>
+                            )}
+                        </div>
+
+                        {/* Footer summary & Download */}
+                        <div className="mt-8 pt-5 border-t border-slate-200 dark:border-slate-850 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
+                            <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
                                     Clientes Coincidentes
                                 </p>
-                                <p className="text-lg font-extrabold text-slate-900 dark:text-white">
-                                    {filteredCustomersByDate.length} <span className="text-sm font-normal text-slate-500">únicos</span>
+                                <p className="text-base md:text-lg font-extrabold text-slate-900 dark:text-white">
+                                    {filteredCustomersByDate.length} <span className="text-xs md:text-sm font-normal text-slate-500">únicos</span>
                                 </p>
                             </div>
                             <div className="flex gap-2.5">
                                 <button
                                     onClick={() => setShowMonthsModal(false)}
-                                    className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all"
+                                    className="px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all"
                                 >
                                     Cerrar
                                 </button>
@@ -1020,9 +1192,11 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                     }}
                                     disabled={
                                         filteredCustomersByDate.length === 0 || 
-                                        (monthsFilterType === 'range' && (!monthsStartDate || !monthsEndDate || new Date(monthsStartDate) > new Date(monthsEndDate)))
+                                        (monthsFilterType === 'range' && (!monthsStartDate || !monthsEndDate || new Date(monthsStartDate) > new Date(monthsEndDate))) ||
+                                        (skuFilterType === 'single' && !skuSingle.trim()) ||
+                                        (skuFilterType === 'list' && !skuListText.trim())
                                     }
-                                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-700 hover:via-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2"
+                                    className="px-5 py-2.5 rounded-xl text-xs md:text-sm font-bold text-white bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-700 hover:via-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2"
                                 >
                                     <Download size={15} />
                                     Descargar Excel
@@ -1030,7 +1204,8 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                             </div>
                         </div>
                     </motion.div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Fullscreen Modal */}

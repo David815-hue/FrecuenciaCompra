@@ -24,11 +24,60 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
         monetaryMax: ''
     });
 
+    // States for downloading customers by previous months/dates
+    const [showMonthsModal, setShowMonthsModal] = useState(false);
+    const [monthsFilterType, setMonthsFilterType] = useState('months'); // 'months' or 'range'
+    const [monthsCount, setMonthsCount] = useState(2);
+    const [monthsStartDate, setMonthsStartDate] = useState(() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 2);
+        return d.toISOString().split('T')[0];
+    });
+    const [monthsEndDate, setMonthsEndDate] = useState(() => {
+        return new Date().toISOString().split('T')[0];
+    });
+
     // Perform RFM Analysis
     const rfmData = useMemo(() => {
         if (!customers || customers.length === 0) return null;
         return performRFMAnalysis(customers, new Date(), searchQuery);
     }, [customers, searchQuery]);
+
+    // Computed range dates when months count filter is active
+    const computedMonthsRange = useMemo(() => {
+        const end = new Date();
+        const start = new Date();
+        start.setMonth(start.getMonth() - Number(monthsCount));
+        return {
+            start: format(start, 'dd/MM/yyyy', { locale: es }),
+            end: format(end, 'dd/MM/yyyy', { locale: es })
+        };
+    }, [monthsCount]);
+
+    // Filter customers uniquely by date range (any purchase within range, any SKU, unique customer)
+    const filteredCustomersByDate = useMemo(() => {
+        if (!rfmData || !rfmData.customers) return [];
+
+        let start, end;
+        if (monthsFilterType === 'months') {
+            end = new Date();
+            start = new Date();
+            start.setMonth(start.getMonth() - Number(monthsCount));
+        } else {
+            start = monthsStartDate ? new Date(monthsStartDate) : new Date(0);
+            end = monthsEndDate ? new Date(monthsEndDate) : new Date();
+            end.setHours(23, 59, 59, 999);
+        }
+
+        return rfmData.customers.filter(customer => {
+            if (!customer.orders) return false;
+            return customer.orders.some(order => {
+                const orderDate = new Date(order.orderDate);
+                if (isNaN(orderDate.getTime())) return false;
+                return orderDate >= start && orderDate <= end;
+            });
+        });
+    }, [rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate]);
 
     // Filter customers by selected segments
     const filteredCustomers = useMemo(() => {
@@ -75,6 +124,58 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             segment,
             `RFM_${segment}_${new Date().toISOString().split('T')[0]}.xlsx`
         );
+    };
+
+    const handleExportByDateRange = () => {
+        let start, end;
+        if (monthsFilterType === 'months') {
+            end = new Date();
+            start = new Date();
+            start.setMonth(start.getMonth() - Number(monthsCount));
+        } else {
+            start = monthsStartDate ? new Date(monthsStartDate) : new Date(0);
+            end = monthsEndDate ? new Date(monthsEndDate) : new Date();
+            end.setHours(23, 59, 59, 999);
+        }
+
+        const exportData = filteredCustomersByDate.map(c => {
+            const rangeOrders = c.orders.filter(order => {
+                const orderDate = new Date(order.orderDate);
+                return !isNaN(orderDate.getTime()) && orderDate >= start && orderDate <= end;
+            });
+
+            const rangeTotalSpent = rangeOrders.reduce((sum, order) => {
+                return sum + (parseFloat(order.totalAmount) || 0);
+            }, 0);
+
+            const rangeOrderDates = rangeOrders.map(o => new Date(o.orderDate)).filter(d => !isNaN(d));
+            const latestRangeDate = rangeOrderDates.length > 0
+                ? new Date(Math.max(...rangeOrderDates))
+                : null;
+
+            return {
+                'Nombre': c.name,
+                'Email': c.email || 'No disponible',
+                'Telefono': c.phone || 'No disponible',
+                'Ciudad': c.city || 'No disponible',
+                'Identidad': c.identity || 'No disponible',
+                'Pedidos en el Rango': rangeOrders.length,
+                'Total Gastado en el Rango (L.)': parseFloat(rangeTotalSpent.toFixed(2)),
+                'Ultima Compra en el Rango': latestRangeDate ? format(latestRangeDate, 'dd/MM/yyyy', { locale: es }) : 'N/A',
+                'Recencia Total (dias)': c.rfm.recency,
+                'Frecuencia Total (pedidos)': c.rfm.frequency,
+                'Monetario Total (L.)': c.rfm.monetary,
+                'Segmento RFM General': c.rfm.segment
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        const rangeStr = monthsFilterType === 'months' 
+            ? `Ultimos_${monthsCount}_Meses` 
+            : `Rango_${monthsStartDate}_a_${monthsEndDate}`;
+        XLSX.utils.book_append_sheet(wb, ws, 'Clientes por Fecha');
+        XLSX.writeFile(wb, `Clientes_Unicos_${rangeStr}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     // Prepare data for charts
@@ -520,7 +621,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             </motion.div>
 
             {/* Export Options */}
-            <div className="flex flex-col sm:flex-row justify-end gap-3 mt-2">
+            <div className="flex flex-col sm:flex-row justify-end gap-4 mt-2">
                 <button
                     onClick={openCustomDbModal}
                     className="text-indigo-600 dark:text-indigo-400 text-sm font-medium hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center gap-1"
@@ -546,6 +647,13 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                     className="text-emerald-600 dark:text-emerald-500 text-sm font-medium hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors flex items-center gap-1"
                 >
                     Descargar BD (Excepto Campeones)
+                </button>
+                <button
+                    onClick={() => setShowMonthsModal(true)}
+                    className="text-blue-600 dark:text-blue-400 text-sm font-medium hover:text-blue-700 dark:hover:text-blue-300 transition-colors flex items-center gap-1"
+                >
+                    <Download size={14} />
+                    Descargar BD por Meses/Fechas
                 </button>
             </div>
 
@@ -731,6 +839,193 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                 >
                                     <Download size={14} />
                                     Descargar mi BD
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Download By Months/Dates Modal */}
+            {showMonthsModal && (
+                <div
+                    className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-start justify-center p-4 pt-8 overflow-y-auto"
+                    onClick={() => setShowMonthsModal(false)}
+                >
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="relative overflow-hidden bg-gradient-to-br from-white/95 to-slate-100/90 dark:from-slate-900/95 dark:to-slate-950/90 rounded-3xl p-6 md:p-8 max-w-xl w-full my-8 shadow-[0_24px_80px_-20px_rgba(15,23,42,0.75)] border border-white/30 dark:border-slate-700/60"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Radiant backgrounds */}
+                        <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.22),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.16),transparent_40%)]" />
+                        
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-4 mb-6">
+                            <div>
+                                <h3 className="text-xl md:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                    <span className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                                        📅
+                                    </span>
+                                    Descargar Clientes por Período
+                                </h3>
+                                <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
+                                    Exporta un listado de clientes únicos con compras registradas en el período seleccionado.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowMonthsModal(false)}
+                                className="p-2 rounded-full bg-white/70 dark:bg-slate-800/70 hover:bg-white dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-all border border-slate-200/60 dark:border-slate-700/70"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Filter Tabs */}
+                        <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1.5 rounded-2xl mb-6 relative">
+                            <button
+                                onClick={() => setMonthsFilterType('months')}
+                                className={`flex-1 py-2 px-3 text-xs md:text-sm font-semibold rounded-xl transition-all ${
+                                    monthsFilterType === 'months'
+                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                🕒 Últimos Meses
+                            </button>
+                            <button
+                                onClick={() => setMonthsFilterType('range')}
+                                className={`flex-1 py-2 px-3 text-xs md:text-sm font-semibold rounded-xl transition-all ${
+                                    monthsFilterType === 'range'
+                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                📅 Rango de Fechas
+                            </button>
+                        </div>
+
+                        {/* Tab Content */}
+                        <div className="space-y-6 relative mb-6">
+                            {monthsFilterType === 'months' ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                                            ¿Cuántos meses anteriores consultar?
+                                        </label>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="range"
+                                                min="1"
+                                                max="12"
+                                                value={monthsCount}
+                                                onChange={(e) => setMonthsCount(Number(e.target.value))}
+                                                className="flex-1 accent-blue-600 dark:accent-blue-500 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                            <span className="w-12 text-center font-extrabold text-lg text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-xl">
+                                                {monthsCount}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Presets */}
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                        {[1, 2, 3, 6, 12].map((num) => (
+                                            <button
+                                                key={num}
+                                                onClick={() => setMonthsCount(num)}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                                                    monthsCount === num
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
+                                                        : 'text-slate-700 dark:text-slate-300 bg-white/80 dark:bg-slate-800/70 border-slate-300/85 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'
+                                                }`}
+                                            >
+                                                {num === 1 ? '1 mes' : `${num} meses`}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Computed Range Display */}
+                                    <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100/60 dark:border-blue-900/35 rounded-2xl p-4 flex items-start gap-3">
+                                        <span className="text-lg">ℹ️</span>
+                                        <div>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">Rango de búsqueda calculado:</p>
+                                            <p className="text-sm font-semibold text-blue-700 dark:text-blue-400 mt-0.5">
+                                                Desde el {computedMonthsRange.start} hasta el {computedMonthsRange.end}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
+                                                Fecha de Inicio
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={monthsStartDate}
+                                                onChange={(e) => setMonthsStartDate(e.target.value)}
+                                                className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/85 dark:bg-slate-900/90 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
+                                                Fecha de Fin
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={monthsEndDate}
+                                                onChange={(e) => setMonthsEndDate(e.target.value)}
+                                                className="w-full rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white/85 dark:bg-slate-900/90 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Date range validation warning if start > end */}
+                                    {monthsStartDate && monthsEndDate && new Date(monthsStartDate) > new Date(monthsEndDate) && (
+                                        <div className="bg-rose-50/90 dark:bg-rose-900/25 border border-rose-200 dark:border-rose-800 rounded-xl p-3">
+                                            <p className="text-xs text-rose-700 dark:text-rose-300 font-semibold">
+                                                ⚠️ La fecha de inicio no puede ser mayor que la fecha de fin.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer summary & Download */}
+                        <div className="mt-8 pt-5 border-t border-slate-200/60 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative">
+                            <div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
+                                    Clientes Coincidentes
+                                </p>
+                                <p className="text-lg font-extrabold text-slate-900 dark:text-white">
+                                    {filteredCustomersByDate.length} <span className="text-sm font-normal text-slate-500">únicos</span>
+                                </p>
+                            </div>
+                            <div className="flex gap-2.5">
+                                <button
+                                    onClick={() => setShowMonthsModal(false)}
+                                    className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all"
+                                >
+                                    Cerrar
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleExportByDateRange();
+                                        setShowMonthsModal(false);
+                                    }}
+                                    disabled={
+                                        filteredCustomersByDate.length === 0 || 
+                                        (monthsFilterType === 'range' && (!monthsStartDate || !monthsEndDate || new Date(monthsStartDate) > new Date(monthsEndDate)))
+                                    }
+                                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-700 hover:via-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2"
+                                >
+                                    <Download size={15} />
+                                    Descargar Excel
                                 </button>
                             </div>
                         </div>

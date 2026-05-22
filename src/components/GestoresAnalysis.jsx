@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Users, TrendingUp, DollarSign, ShoppingBag, ShoppingCart, User, Filter, Search, X, Activity, Phone, Mail, MapPin, Calendar, ChevronDown, ArrowUpDown, Lock, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -356,8 +356,6 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
             'Teléfono': c.phone,
             'Ciudad': c.city,
             'Total Frecuencia': c.orders.length,
-            'Total Comprado (L)': c.totalSpent,
-            'Última Compra': c.lastPurchase ? format(new Date(c.lastPurchase), 'dd/MM/yyyy') : '-',
             'Total Comprado (L)': c.totalSpent,
             'Última Compra': c.lastPurchase ? format(new Date(c.lastPurchase), 'dd/MM/yyyy') : '-',
             'Productos Comprados': [...new Set(c.orders.flatMap(o => (o.items || []).map(i => i.description || i.sku)))].join(', ')

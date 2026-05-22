@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { performRFMAnalysis, getSegmentInfo } from '../utils/rfmAnalysis';
@@ -39,9 +39,33 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
     });
 
     // SKU filtering states
-    const [skuFilterType, setSkuFilterType] = useState('any'); // 'any' | 'single' | 'list'
+    const [skuFilterType, setSkuFilterType] = useState('any'); // 'any' | 'current' | 'single' | 'list'
     const [skuSingle, setSkuSingle] = useState('');
     const [skuListText, setSkuListText] = useState('');
+
+    // Lock body scroll when any modal is open
+    useEffect(() => {
+        const isModalOpen = showMonthsModal || showCustomDbModal || !!fullscreenChart;
+        if (isModalOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showMonthsModal, showCustomDbModal, fullscreenChart]);
+
+    // Automatically select the appropriate default SKU filter type when the months/dates modal opens
+    useEffect(() => {
+        if (showMonthsModal) {
+            if (searchQuery && searchQuery.trim() !== '') {
+                setSkuFilterType('current');
+            } else {
+                setSkuFilterType('any');
+            }
+        }
+    }, [showMonthsModal, searchQuery]);
 
     // Perform RFM Analysis
     const rfmData = useMemo(() => {
@@ -77,7 +101,12 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
 
         // Parse target SKUs
         let targets = [];
-        if (skuFilterType === 'single' && skuSingle.trim()) {
+        if (skuFilterType === 'current' && searchQuery.trim()) {
+            targets = searchQuery
+                .split(/[\n,;\t]+/)
+                .map(s => s.trim().toUpperCase())
+                .filter(Boolean);
+        } else if (skuFilterType === 'single' && skuSingle.trim()) {
             targets = [skuSingle.trim().toUpperCase()];
         } else if (skuFilterType === 'list' && skuListText.trim()) {
             targets = skuListText
@@ -105,7 +134,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                 return true;
             });
         });
-    }, [rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate, skuFilterType, skuSingle, skuListText]);
+    }, [rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate, skuFilterType, skuSingle, skuListText, searchQuery]);
 
     // Filter customers by selected segments
     const filteredCustomers = useMemo(() => {
@@ -168,7 +197,12 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
 
         // Parse target SKUs
         let targets = [];
-        if (skuFilterType === 'single' && skuSingle.trim()) {
+        if (skuFilterType === 'current' && searchQuery.trim()) {
+            targets = searchQuery
+                .split(/[\n,;\t]+/)
+                .map(s => s.trim().toUpperCase())
+                .filter(Boolean);
+        } else if (skuFilterType === 'single' && skuSingle.trim()) {
             targets = [skuSingle.trim().toUpperCase()];
         } else if (skuFilterType === 'list' && skuListText.trim()) {
             targets = skuListText
@@ -268,8 +302,10 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
             : `Rango_${monthsStartDate}_a_${monthsEndDate}`;
         
         let skuStr = '';
-        if (skuFilterType === 'single' && skuSingle.trim()) {
-            skuStr = `_SKU_${skuSingle.trim()}`;
+        if (skuFilterType === 'current' && searchQuery.trim()) {
+            skuStr = `_SKU_${searchQuery.trim().replace(/\s+/g, '_')}`;
+        } else if (skuFilterType === 'single' && skuSingle.trim()) {
+            skuStr = `_SKU_${skuSingle.trim().replace(/\s+/g, '_')}`;
         } else if (skuFilterType === 'list') {
             skuStr = `_Lista_SKUs`;
         }
@@ -759,14 +795,18 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
 
             {/* Custom DB Modal */}
             {showCustomDbModal && (
-                <div
-                    className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-start justify-center p-4 pt-8 overflow-y-auto"
-                    onClick={() => setShowCustomDbModal(false)}
-                >
+                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto">
+                    {/* Backdrop */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-md"
+                        onClick={() => setShowCustomDbModal(false)}
+                    />
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="relative overflow-hidden bg-gradient-to-br from-white/95 to-slate-100/90 dark:from-slate-900/95 dark:to-slate-950/90 rounded-3xl p-6 md:p-8 max-w-4xl w-full my-8 shadow-[0_24px_80px_-20px_rgba(15,23,42,0.75)] border border-white/30 dark:border-slate-700/60"
+                        className="relative overflow-hidden bg-gradient-to-br from-white/95 to-slate-100/90 dark:from-slate-900/95 dark:to-slate-950/90 rounded-3xl p-6 md:p-8 max-w-4xl w-full my-8 shadow-[0_24px_80px_-20px_rgba(15,23,42,0.75)] border border-white/30 dark:border-slate-700/60 z-10"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="pointer-events-none absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.22),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.16),transparent_40%)]" />
@@ -948,14 +988,18 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
 
             {/* Download By Months/Dates Modal */}
             {showMonthsModal && createPortal(
-                <div
-                    className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-4 pt-8 overflow-y-auto"
-                    onClick={() => setShowMonthsModal(false)}
-                >
+                <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 pt-8 overflow-y-auto">
+                    {/* Backdrop */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-md"
+                        onClick={() => setShowMonthsModal(false)}
+                    />
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-xl w-full my-8 shadow-[0_24px_80px_-20px_rgba(15,23,42,0.75)] border border-slate-200 dark:border-slate-800"
+                        className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-xl w-full my-8 shadow-[0_24px_80px_-20px_rgba(15,23,42,0.75)] border border-slate-200 dark:border-slate-800 z-10"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Radiant background overlays */}
@@ -1107,10 +1151,11 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className={`grid ${searchQuery.trim() ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-3`}>
                                 {[
+                                    ...(searchQuery.trim() ? [{ type: 'current', label: `Este SKU (${searchQuery.trim()})`, icon: '🎯' }] : []),
                                     { type: 'any', label: 'Cualquier SKU', icon: '🛒' },
-                                    { type: 'single', label: 'Un SKU', icon: '🏷️' },
+                                    { type: 'single', label: searchQuery.trim() ? 'Otro SKU' : 'Un SKU', icon: '🏷️' },
                                     { type: 'list', label: 'Lista de SKUs', icon: '📋' }
                                 ].map((opt) => (
                                     <button
@@ -1124,7 +1169,7 @@ const RFMAnalysis = ({ customers, searchQuery = '' }) => {
                                         }`}
                                     >
                                         <span className="text-lg">{opt.icon}</span>
-                                        <span className="text-[11px] font-semibold tracking-tight">{opt.label}</span>
+                                        <span className="text-[11px] font-semibold tracking-tight line-clamp-2" title={opt.label}>{opt.label}</span>
                                     </button>
                                 ))}
                             </div>

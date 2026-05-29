@@ -951,7 +951,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                         <ArrowUpDown size={14} className="opacity-60" />
                                                     )}
                                                     <span className="ml-auto text-[10px] font-normal px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full normal-case tracking-normal text-slate-500 dark:text-slate-400">
-                                                        {displayDateRange.min.getFullYear()}
+                                                        Últimos 12 Meses
                                                     </span>
                                                 </div>
                                             </th>

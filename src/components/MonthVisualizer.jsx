@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { format, eachMonthOfInterval, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -11,10 +11,21 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     const [shakingMonth, setShakingMonth] = useState(null);
     const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
 
+    // 12-month rolling window calculation ending on maxDate (or today)
+    const endDate = endOfMonth(maxDate || new Date());
+    const startDate = startOfMonth(new Date(endDate.getFullYear(), endDate.getMonth() - 11, 1));
+
     const timeline = eachMonthOfInterval({
-        start: startOfMonth(minDate || new Date()),
-        end: endOfMonth(maxDate || new Date())
+        start: startDate,
+        end: endDate
     });
+
+    const hasOlderOrders = useMemo(() => {
+        return orders.some(order => {
+            const d = new Date(order.orderDate);
+            return !isNaN(d.getTime()) && d < startDate;
+        });
+    }, [orders, startDate]);
 
     const monthData = {};
     orders.forEach(order => {
@@ -79,7 +90,15 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     };
 
     return (
-        <div className="flex w-full min-w-[200px] border border-slate-200/60 dark:border-slate-700/60 rounded-xl divide-x divide-slate-100 dark:divide-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm transition-colors duration-300">
+        <div className="flex w-full min-w-[200px] border border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden divide-x divide-slate-100 dark:divide-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm transition-colors duration-300">
+            {hasOlderOrders && (
+                <div 
+                    className="flex items-center justify-center w-8 h-9 text-[11px] font-black text-indigo-650 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/20 cursor-help shrink-0 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/40 transition-colors"
+                    title="El cliente tiene compras en meses/años anteriores a este gráfico"
+                >
+                    •••
+                </div>
+            )}
             {timeline.map((dateObj, idx) => {
                 const key = format(dateObj, 'yyyy-MM');
                 const data = monthData[key];
@@ -98,7 +117,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                     <motion.div
                         key={key}
                         className={`
-                            relative flex-1 h-9 flex items-center justify-center text-[10px] transition-all duration-200 first:rounded-l-xl last:rounded-r-xl
+                            relative flex-1 h-9 flex items-center justify-center text-[10px] transition-all duration-200
                             ${getIntensityClass(count)}
                             ${count > 0 ? 'active:scale-95' : ''}
                         `}

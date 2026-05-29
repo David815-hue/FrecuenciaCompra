@@ -757,7 +757,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl relative z-0">
                             {[
                                 { id: 'table', label: 'Tabla', icon: BarChart3 },
-                                ...(isRestricted ? [] : [{ id: 'rfm', label: 'Análisis RFM', icon: TrendingUp }]),
+                                ...(isRestricted ? [] : [{ id: 'rfm', label: 'RFM', icon: TrendingUp }]),
                                 { id: 'gestores', label: 'Gestores', icon: Users }
                             ].map((tab) => (
                                 <button

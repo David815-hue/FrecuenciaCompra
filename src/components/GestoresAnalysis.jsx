@@ -26,6 +26,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         start: '',
         end: ''
     });
+    const [selectedSpecialView, setSelectedSpecialView] = useState(null); // null, 'app', 'web'
 
     const filterButtonRef = useRef(null);
 
@@ -64,6 +65,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         if (isRestricted) return; // Prevent selection if restricted
         setSelectedZone(zone);
         setSelectedGestor(gestor);
+        setSelectedSpecialView(null);
         setIsFilterOpen(false);
         setSearchTerm('');
     }, [isRestricted]);
@@ -73,6 +75,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         setIsZoneLoading(true);
         setSelectedZone(zone);
         setSelectedGestor('all');
+        setSelectedSpecialView(null);
         setIsFilterOpen(false);
         setSearchTerm('');
     }, [isRestricted]);
@@ -131,15 +134,19 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
     // PERF: Filter data by selected gestor - optimized dependencies
     const filteredCustomers = useMemo(() => {
-        // Keep empty state only when user has not selected zone or gestor
-        if (selectedGestor === 'all' && selectedZone === 'all') {
+        // Keep empty state only when user has not selected zone, gestor or special view
+        if (selectedGestor === 'all' && selectedZone === 'all' && !selectedSpecialView) {
             return [];
         }
 
         let filtered = data;
 
-        // Filter by gestor or by whole zone
-        if (selectedGestor !== 'all') {
+        // Filter by special view or gestor or zone
+        if (selectedSpecialView === 'app') {
+            filtered = filtered.filter(order => order.channel && order.channel.toUpperCase().includes('APP'));
+        } else if (selectedSpecialView === 'web') {
+            filtered = filtered.filter(order => order.channel && (order.channel.toUpperCase().includes('ECOMMERCE') || order.channel.toUpperCase().includes('WEB')));
+        } else if (selectedGestor !== 'all') {
             filtered = filtered.filter(order => order.gestorName === selectedGestor);
         } else if (selectedZone !== 'all') {
             filtered = filtered.filter(order => order.gestorZone === selectedZone);
@@ -204,7 +211,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
         return customers;
 
-    }, [data, selectedGestor, selectedZone, sortBy, sortDirection, dateRange]); // Added dateRange
+    }, [data, selectedGestor, selectedZone, sortBy, sortDirection, dateRange, selectedSpecialView]); // Added dateRange, selectedSpecialView
 
     // Filter customers by search term (Identidad, Nombre, Teléfono, SKU, Descripción)
     const searchedCustomers = useMemo(() => {
@@ -392,7 +399,11 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                             {isRestricted ? 'Vista Restringida' : 'Filtro Activo'}
                         </span>
                         <div className="flex items-center gap-1.5 font-bold text-sm">
-                            {selectedGestor !== 'all' ? (
+                            {selectedSpecialView === 'app' ? (
+                                <><span className="text-base">📱</span> Canal App</>
+                            ) : selectedSpecialView === 'web' ? (
+                                <><span className="text-base">🌐</span> Canal Web</>
+                            ) : selectedGestor !== 'all' ? (
                                 <><User size={14} className="text-indigo-400" /> {selectedGestor}</>
                             ) : selectedZone !== 'all' ? (
                                 <><MapPin size={14} className="text-indigo-400" /> Zona {selectedZone}</>
@@ -455,7 +466,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                 className="absolute top-full left-0 mt-2 w-72 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl shadow-2xl p-4 z-40 max-h-[60vh] overflow-y-auto custom-scrollbar"
                             >
                                 <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 px-2">
-                                    Selecciona Vista
+                                    Selecciona Vista (Zonas)
                                 </h3>
 
                                 {/* Search Input */}
@@ -469,7 +480,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                     />
                                 </div>
 
-                                <div className="space-y-1">
+                                <div className="space-y-1 mb-4">
                                     {/* Zone List */}
                                     {Object.entries(filteredZones).map(([zoneName, gestores]) => {
                                         const isZoneActive = selectedZone === zoneName;
@@ -540,6 +551,68 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                             </div>
                                         );
                                     })}
+                                </div>
+
+                                <hr className="border-slate-150 dark:border-slate-800 mb-4 mx-2" />
+
+                                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                                    <Activity size={12} className="text-indigo-500" />
+                                    Canales Digitales
+                                </h3>
+                                <div className="space-y-1 px-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedSpecialView('app');
+                                            setSelectedZone('all');
+                                            setSelectedGestor('all');
+                                            setIsFilterOpen(false);
+                                        }}
+                                        className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between group cursor-pointer ${
+                                            selectedSpecialView === 'app'
+                                                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800'
+                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm">📱</span>
+                                            <span>Canal App</span>
+                                        </div>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase transition-colors ${
+                                            selectedSpecialView === 'app'
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                        }`}>
+                                            Ver Canal
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedSpecialView('web');
+                                            setSelectedZone('all');
+                                            setSelectedGestor('all');
+                                            setIsFilterOpen(false);
+                                        }}
+                                        className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between group cursor-pointer ${
+                                            selectedSpecialView === 'web'
+                                                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800'
+                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm">🌐</span>
+                                            <span>Canal Web</span>
+                                        </div>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase transition-colors ${
+                                            selectedSpecialView === 'web'
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                        }`}>
+                                            Ver Canal
+                                        </span>
+                                    </button>
                                 </div>
                             </motion.div>
                         </>
@@ -738,6 +811,42 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                                     .map(([name, count]) => `${name}: ${count} pedidos`)
                                                     .join('\n');
 
+                                                // Check for App or Web orders in the customer's entire history in the active dataset
+                                                const customerAllOrders = data.filter(order =>
+                                                    (order.email && order.email === customer.email) ||
+                                                    (order.phone && order.phone === customer.phone) ||
+                                                    (order.name && order.name === customer.name)
+                                                );
+
+                                                const hasAppPurchases = customerAllOrders.some(o => 
+                                                    o.channel && o.channel.toUpperCase().includes('APP')
+                                                );
+                                                const hasWebPurchases = customerAllOrders.some(o => 
+                                                    o.channel && (o.channel.toUpperCase().includes('ECOMMERCE') || o.channel.toUpperCase().includes('WEB'))
+                                                );
+
+                                                // Calculate specific product spent if searching by SKU/description
+                                                const specificProductSpent = (() => {
+                                                    if (!customerSearchTerm.trim()) return 0;
+                                                    const terms = customerSearchTerm.toLowerCase().split(/[\n,]+/).map(t => t.trim()).filter(Boolean);
+                                                    if (terms.length === 0) return 0;
+
+                                                    let spent = 0;
+                                                    customer.orders.forEach(order => {
+                                                        (order.items || []).forEach(item => {
+                                                            const sku = String(item.sku || '').toLowerCase();
+                                                            const description = String(item.description || '').toLowerCase();
+                                                            
+                                                            const isMatch = terms.some(term => sku.includes(term) || description.includes(term));
+                                                            if (isMatch) {
+                                                                const itemTotal = parseFloat(item.total || item.lineTotal || (parseFloat(item.price || 0) * parseFloat(item.quantity || 1))) || 0;
+                                                                spent += itemTotal;
+                                                            }
+                                                        });
+                                                    });
+                                                    return spent;
+                                                })();
+
                                                 return (
                                                     <tr
                                                         key={`${customer.name}-${idx}`}
@@ -814,24 +923,59 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                                                 <div className="font-mono text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                                                                     {customer.identity}
                                                                 </div>
-                                                                <div className="flex flex-col gap-1">
-                                                                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full inline-block w-fit">
-                                                                        {customer.orders.length} Pedidos ({selectedGestor})
-                                                                    </span>
-                                                                    {selectedGestor !== 'all' && isShared && (
-                                                                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                                                            +{otherGestoresOrderCount} otros
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    <div className="flex flex-wrap items-center gap-1">
+                                                                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full inline-block w-fit">
+                                                                            {customer.orders.length} Pedidos {selectedSpecialView === 'app' ? 'en App' : selectedSpecialView === 'web' ? 'en Web' : ''} ({selectedSpecialView ? 'Canal Digital' : selectedGestor === 'all' ? `Zona ${selectedZone}` : selectedGestor})
                                                                         </span>
+                                                                        {selectedGestor !== 'all' && isShared && (
+                                                                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                                                                                +{otherGestoresOrderCount} otros
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {(hasAppPurchases || hasWebPurchases) && (
+                                                                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                                                            {hasAppPurchases && (
+                                                                                <span 
+                                                                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/40 px-1.5 py-0.5 rounded-md shadow-sm"
+                                                                                    title="El cliente ha realizado compras a través de la App de Punto Farma"
+                                                                                >
+                                                                                    📱 App
+                                                                                </span>
+                                                                            )}
+                                                                            {hasWebPurchases && (
+                                                                                <span 
+                                                                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/40 px-1.5 py-0.5 rounded-md shadow-sm"
+                                                                                    title="El cliente ha realizado compras a través de la Web de Punto Farma"
+                                                                                >
+                                                                                    🌐 Web
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                             </div>
                                                         </td>
 
-                                                        <td className="px-6 py-6 align-top text-right">
-                                                            <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight">
-                                                                L. {(customer.totalSpent || 0).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                            </div>
-                                                        </td>
+                                                         <td className="px-6 py-6 align-top text-right">
+                                                             <div className="flex flex-col items-end">
+                                                                 <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight leading-none mb-1">
+                                                                     L. {(customer.totalSpent || 0).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                 </div>
+                                                                 <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 font-medium leading-none flex-wrap justify-end">
+                                                                     <span>Total acumulado</span>
+                                                                     {specificProductSpent > 0 && (
+                                                                         <span 
+                                                                             className="text-[10px] font-extrabold px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/40 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-md shadow-sm"
+                                                                             title={`Monto gastado en productos que coinciden con "${customerSearchTerm}"`}
+                                                                         >
+                                                                             L. {specificProductSpent.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} del código
+                                                                         </span>
+                                                                     )}
+                                                                 </div>
+                                                             </div>
+                                                         </td>
 
                                                         <td className="px-6 py-6 align-top">
                                                             <MonthVisualizer

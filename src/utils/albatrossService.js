@@ -281,7 +281,8 @@ export const runAutomaticSync = async ({ startDate, endDate, isIncremental, onPr
             if (!rmsOrderMap.has(orderId)) {
                 rmsOrderMap.set(orderId, {
                     amount: 0,
-                    items: []
+                    items: [],
+                    channel: row['canal'] || row['Canal'] || 'VENTA NO PRESENCIALES'
                 });
             }
 
@@ -361,7 +362,7 @@ export const runAutomaticSync = async ({ startDate, endDate, isIncremental, onPr
                 orderDate: orderDateStr,
                 totalAmount,
                 items,
-                channel: "VENTA NO PRESENCIALES",
+                channel: rmsOrder ? rmsOrder.channel : "VENTA NO PRESENCIALES",
                 posUser,
                 gestorName: gestorInfo?.gestor || null,
                 gestorZone: gestorInfo?.zona || null

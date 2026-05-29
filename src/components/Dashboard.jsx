@@ -353,11 +353,33 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
         setShowSuggestions(false);
     };
 
+    // Scan data to find SKU & description for the search tag display
+    const searchProductInfo = useMemo(() => {
+        if (!query.trim()) return null;
+        const searchTerm = query.trim().toLowerCase();
+        for (const order of data) {
+            for (const item of (order.items || [])) {
+                const sku = String(item.sku || '').toLowerCase();
+                const description = String(item.description || '').toLowerCase();
+                if (sku === searchTerm || sku.includes(searchTerm)) {
+                    return {
+                        sku: item.sku,
+                        description: item.description
+                    };
+                }
+            }
+        }
+        return null;
+    }, [data, query]);
+
     const activeFilterChips = [];
     if (query.trim()) {
+        const labelText = searchProductInfo 
+            ? `Busqueda: ${searchProductInfo.sku} - ${searchProductInfo.description}`
+            : `Busqueda: ${query.trim()}`;
         activeFilterChips.push({
             key: 'query',
-            label: `Busqueda: ${query.trim()}`,
+            label: labelText,
             onRemove: () => {
                 setQuery('');
                 setShowSuggestions(false);
@@ -958,11 +980,34 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                        {paginatedList.map((customer, idx) => (
-                                            <tr
-                                                key={`${customer.name}-${idx}`}
-                                                className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group relative"
-                                            >
+                                        {paginatedList.map((customer, idx) => {
+                                            // Calculate specific product spent if searching by SKU/description
+                                            const specificProductSpent = (() => {
+                                                if (!query.trim()) return 0;
+                                                const terms = query.toLowerCase().split(/[\n,]+/).map(t => t.trim()).filter(Boolean);
+                                                if (terms.length === 0) return 0;
+
+                                                let spent = 0;
+                                                customer.orders.forEach(order => {
+                                                    (order.items || []).forEach(item => {
+                                                        const sku = String(item.sku || '').toLowerCase();
+                                                        const description = String(item.description || '').toLowerCase();
+                                                        
+                                                        const isMatch = terms.some(term => sku.includes(term) || description.includes(term));
+                                                        if (isMatch) {
+                                                            const itemTotal = parseFloat(item.total || item.lineTotal || (parseFloat(item.price || 0) * parseFloat(item.quantity || 1))) || 0;
+                                                            spent += itemTotal;
+                                                        }
+                                                    });
+                                                });
+                                                return spent;
+                                            })();
+
+                                            return (
+                                                <tr
+                                                    key={`${customer.name}-${idx}`}
+                                                    className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group relative"
+                                                >
                                                 <td className="px-8 py-6 align-top">
                                                     <div className="flex gap-4">
                                                         {/* Avatar Placeholder */}
@@ -1004,17 +1049,52 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                         <div className="font-mono text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                                                             {customer.identity}
                                                         </div>
-                                                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                                            {customer.orders.length} pedidos
-                                                        </span>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full w-fit">
+                                                                {customer.orders.length} pedidos
+                                                            </span>
+                                                            {(customer.orders.some(o => o.channel && o.channel.toUpperCase().includes('APP')) || 
+                                                              customer.orders.some(o => o.channel && (o.channel.toUpperCase().includes('ECOMMERCE') || o.channel.toUpperCase().includes('WEB')))) && (
+                                                                <div className="flex flex-wrap items-center gap-1">
+                                                                    {customer.orders.some(o => o.channel && o.channel.toUpperCase().includes('APP')) && (
+                                                                        <span 
+                                                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/40 px-1.5 py-0.5 rounded-md shadow-sm"
+                                                                            title="El cliente ha realizado compras a través de la App de Punto Farma"
+                                                                        >
+                                                                            📱 App
+                                                                        </span>
+                                                                    )}
+                                                                    {customer.orders.some(o => o.channel && (o.channel.toUpperCase().includes('ECOMMERCE') || o.channel.toUpperCase().includes('WEB'))) && (
+                                                                        <span 
+                                                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-650 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/40 px-1.5 py-0.5 rounded-md shadow-sm"
+                                                                            title="El cliente ha realizado compras a través de la Web de Punto Farma"
+                                                                        >
+                                                                            🌐 Web
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </td>
 
                                                 <td className="px-6 py-6 align-top text-right">
-                                                    <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight">
-                                                        L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    <div className="flex flex-col items-end">
+                                                        <div className="font-bold text-slate-900 dark:text-slate-100 text-lg tracking-tight leading-none mb-1">
+                                                            L. {customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 font-medium leading-none flex-wrap justify-end">
+                                                            <span>Total acumulado</span>
+                                                            {specificProductSpent > 0 && (
+                                                                <span 
+                                                                    className="text-[10px] font-extrabold px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/40 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-md shadow-sm"
+                                                                    title={`Monto gastado en productos que coinciden con "${query}"`}
+                                                                >
+                                                                    L. {specificProductSpent.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} del código
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="text-xs text-slate-400 dark:text-slate-500 font-medium">Total acumulado</div>
                                                 </td>
 
                                                 <td className="px-6 py-6 align-top">
@@ -1035,7 +1115,8 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                        );
+                                        })}
 
                                         {/* Empty State */}
                                         {displayList.length === 0 && (

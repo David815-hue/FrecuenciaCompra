@@ -228,9 +228,7 @@ export const updateCustomer = async (customerId, data) => {
  */
 export const getLatestOrderDate = async () => {
     try {
-        // We need to fetch customers to check their order dates
-        // Since order dates are inside the JSONB 'orders' column, we have to fetch and parse
-        // For performance, we could select only the orders column
+        // Fetch only customers to check their matched order dates (those with items)
         const { data: customers, error } = await supabase
             .from(TABLE_NAME)
             .select('orders');
@@ -242,16 +240,19 @@ export const getLatestOrderDate = async () => {
         customers.forEach(customer => {
             const customerOrders = customer.orders || [];
             customerOrders.forEach(order => {
-                const orderDate = new Date(order.orderDate);
-                if (!isNaN(orderDate)) {
-                    if (!latestDate || orderDate > latestDate) {
-                        latestDate = orderDate;
+                // Strictly select orders that have items (matched with RMS)
+                if (order.items && order.items.length > 0) {
+                    const orderDate = new Date(order.orderDate);
+                    if (!isNaN(orderDate)) {
+                        if (!latestDate || orderDate > latestDate) {
+                            latestDate = orderDate;
+                        }
                     }
                 }
             });
         });
 
-        console.log(`📅 Latest order date in Supabase: ${latestDate || 'No data'}`);
+        console.log(`📅 Latest RMS order date in Supabase: ${latestDate || 'No data'}`);
         return latestDate;
     } catch (error) {
         console.error('Error getting latest order date:', error);

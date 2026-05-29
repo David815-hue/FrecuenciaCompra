@@ -9,6 +9,7 @@ import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets, filterDataByDate } from './utils/dataProcessing';
 import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, getLatestOrderDate } from './utils/supabaseUtils';
 import { getCurrentUser, onAuthStateChange, logout } from './utils/authUtils';
+import { runAutomaticSync } from './utils/albatrossService';
 import { Cloud, CloudOff, RefreshCw, Trash2, LogOut, User, Shield } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -197,6 +198,19 @@ function App() {
       alert("Hubo un error al procesar los archivos. Revisa la consola para más detalles.");
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleAutomaticSync = async ({ startDate, endDate, isIncremental, onProgress }) => {
+    try {
+      const result = await runAutomaticSync({ startDate, endDate, isIncremental, onProgress });
+      if (result.success) {
+        await loadFromCloud();
+      }
+      return result;
+    } catch (error) {
+      console.error("Error in automatic sync:", error);
+      throw error;
     }
   };
 
@@ -418,7 +432,7 @@ function App() {
               animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
               exit={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="h-[80vh] flex items-center justify-center"
+              className="min-h-[80vh] flex items-center justify-center py-10"
             >
               {isGestora ? (
                 <div className="text-center">
@@ -429,6 +443,7 @@ function App() {
               ) : (
                 <FileUpload
                   onFilesUploaded={handleFilesUploaded}
+                  onAutomaticSync={handleAutomaticSync}
                   currentUser={authState.profile}
                   onGoToDashboard={loadFromCloud}
                 />

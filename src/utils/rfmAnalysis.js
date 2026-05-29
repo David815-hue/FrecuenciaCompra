@@ -238,7 +238,7 @@ export const getSegmentInfo = (segment) => {
     const segmentData = {
         'Champions': {
             name: 'Campeones',
-            icon: '*',
+            icon: '🏆',
             color: '#FFD700',
             bgColor: '#FFF9E6',
             darkBgColor: '#4A3F00',
@@ -248,7 +248,7 @@ export const getSegmentInfo = (segment) => {
         },
         'Loyal Customers': {
             name: 'Leales',
-            icon: '*',
+            icon: '💎',
             color: '#4F46E5',
             bgColor: '#EEF2FF',
             darkBgColor: '#1E1B4B',
@@ -258,7 +258,7 @@ export const getSegmentInfo = (segment) => {
         },
         'Potential Loyalists': {
             name: 'Potenciales',
-            icon: '*',
+            icon: '🌟',
             color: '#10B981',
             bgColor: '#ECFDF5',
             darkBgColor: '#064E3B',
@@ -268,7 +268,7 @@ export const getSegmentInfo = (segment) => {
         },
         'New Customers': {
             name: 'Nuevos',
-            icon: '*',
+            icon: '🆕',
             color: '#06B6D4',
             bgColor: '#ECFEFF',
             darkBgColor: '#164E63',
@@ -278,7 +278,7 @@ export const getSegmentInfo = (segment) => {
         },
         'Nuevos Compradores Recientes': {
             name: 'Nuevos Compradores Recientes',
-            icon: '*',
+            icon: '🌱',
             color: '#84CC16',
             bgColor: '#F7FEE7',
             darkBgColor: '#365314',
@@ -288,7 +288,7 @@ export const getSegmentInfo = (segment) => {
         },
         'Nuevos Compradores Inactivos': {
             name: 'Nuevos Compradores Inactivos',
-            icon: '*',
+            icon: '💤',
             color: '#1F2937',
             bgColor: '#F9FAFB',
             darkBgColor: '#111827',
@@ -298,7 +298,7 @@ export const getSegmentInfo = (segment) => {
         },
         'Compradores Ocasionales': {
             name: 'Compradores Ocasionales',
-            icon: '*',
+            icon: '🔄',
             color: '#A855F7',
             bgColor: '#FAF5FF',
             darkBgColor: '#581C87',
@@ -308,7 +308,7 @@ export const getSegmentInfo = (segment) => {
         },
         "Can't Lose Them": {
             name: 'Criticos',
-            icon: '*',
+            icon: '⚠️',
             color: '#EF4444',
             bgColor: '#FEE2E2',
             darkBgColor: '#7F1D1D',
@@ -318,7 +318,7 @@ export const getSegmentInfo = (segment) => {
         },
         'Hibernating': {
             name: 'Inactivos',
-            icon: '*',
+            icon: '😴',
             color: '#6B7280',
             bgColor: '#F3F4F6',
             darkBgColor: '#374151',
@@ -328,7 +328,7 @@ export const getSegmentInfo = (segment) => {
         },
         'Lost': {
             name: 'Perdidos',
-            icon: '*',
+            icon: '👋',
             color: '#374151',
             bgColor: '#E5E7EB',
             darkBgColor: '#1F2937',

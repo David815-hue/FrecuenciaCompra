@@ -805,8 +805,8 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
             </div>
 
             {/* Custom DB Modal */}
-            {showCustomDbModal && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto">
+            {showCustomDbModal && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 pt-8 overflow-y-auto">
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -994,7 +994,8 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
                             </div>
                         </div>
                     </motion.div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Download By Months/Dates Modal */}
@@ -1266,9 +1267,9 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
 
             {/* Fullscreen Modal */}
             {
-                fullscreenChart && (
+                fullscreenChart && createPortal(
                     <div
-                        className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-start justify-center p-4 pt-8 overflow-y-auto"
+                        className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-start justify-center p-4 pt-8 overflow-y-auto"
                         onClick={() => setFullscreenChart(null)}
                     >
                         <motion.div
@@ -1380,7 +1381,8 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
                                 )}
                             </div>
                         </motion.div>
-                    </div>
+                    </div>,
+                    document.body
                 )
             }
         </div >

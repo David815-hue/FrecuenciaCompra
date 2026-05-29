@@ -504,7 +504,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                     </div>
 
                     {/* Controls Bar */}
-                    <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-2 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/30 dark:border-slate-700/50 transition-all duration-300 overflow-visible">
+                    <div className="relative z-30 flex flex-col md:flex-row gap-4 w-full lg:w-auto bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-2 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.2)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/30 dark:border-slate-700/50 transition-all duration-300 overflow-visible">
                         {/* Search Input - hidden on Gestores tab */}
                         {viewMode !== 'gestores' && (
                             <>
@@ -768,7 +768,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="px-4 flex flex-col md:flex-row gap-4 items-start md:items-center"
+                        className="relative z-10 px-4 flex flex-col md:flex-row gap-4 items-start md:items-center"
                     >
                         {/* City Filter */}
                         <div className="flex flex-col gap-2 w-full md:w-auto">

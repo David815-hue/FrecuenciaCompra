@@ -42,6 +42,7 @@ export const loginWithUsername = async (username, password) => {
             success: true,
             user: firebaseUser,
             profile: {
+                uid: firebaseUser.uid,
                 username: username.toLowerCase().trim(),
                 displayName: firebaseUser.displayName || username,
                 role: role,
@@ -102,6 +103,7 @@ export const getCurrentUser = async () => {
         return {
             user: firebaseUser,
             profile: {
+                uid: firebaseUser.uid,
                 username: username,
                 displayName: firebaseUser.displayName || username,
                 role: role,
@@ -134,6 +136,7 @@ export const onAuthStateChange = (callback) => {
         callback({
             user: firebaseUser,
             profile: {
+                uid: firebaseUser.uid,
                 username: username,
                 displayName: firebaseUser.displayName || username,
                 role: role,
@@ -147,9 +150,7 @@ export const onAuthStateChange = (callback) => {
 // These functions call API endpoints (local Express or Vercel serverless)
 
 // Auto-detect API URL based on environment
-const API_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:3001/api'  // Local development
-    : '/api';  // Production (Vercel)
+const API_URL = '/api';
 
 /**
  * Change password (User specific)

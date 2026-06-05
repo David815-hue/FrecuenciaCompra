@@ -6,6 +6,8 @@ import AdminPanel from './components/AdminPanel';
 import ForcePasswordChange from './components/ForcePasswordChange';
 import ThemeToggle from './components/ThemeToggle';
 import AIChatWidget from './components/AIChatWidget';
+import CampaignManager from './components/CampaignManager';
+import GestoraCallView from './components/GestoraCallView';
 import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets, filterDataByDate } from './utils/dataProcessing';
 import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, getLatestOrderDate } from './utils/supabaseUtils';
@@ -29,6 +31,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeView, setActiveView] = useState('dashboard'); // 'dashboard' | 'admin'
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [preloadedCampaignClients, setPreloadedCampaignClients] = useState(null);
   const [syncStatus, setSyncStatus] = useState({
     lastSync: null,
     isLoading: false,
@@ -322,18 +325,27 @@ function App() {
               </div>
             </div>
 
-            {/* Navigation Tabs (Admin only) */}
-            {isAdmin && (
-              <div className="hidden md:flex gap-1 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/50 dark:border-slate-800 shadow-sm p-1 rounded-full pointer-events-auto">
-                <button
-                  onClick={() => setActiveView('dashboard')}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${activeView === 'dashboard'
-                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                >
-                  Dashboard
-                </button>
+            {/* Navigation Tabs */}
+            <div className="hidden md:flex gap-1 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/50 dark:border-slate-800 shadow-sm p-1 rounded-full pointer-events-auto">
+              <button
+                onClick={() => setActiveView('dashboard')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${activeView === 'dashboard'
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => setActiveView('campaigns')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${activeView === 'campaigns'
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+              >
+                {isAdmin ? 'Campañas' : 'Mis Llamadas'}
+              </button>
+              {isAdmin && (
                 <button
                   onClick={() => setActiveView('admin')}
                   className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${activeView === 'admin'
@@ -343,8 +355,8 @@ function App() {
                 >
                   Gestión de Usuarios
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Navigation Tabs (Admin only) - Centered/Beside User */}
@@ -442,6 +454,25 @@ function App() {
             >
               <AdminPanel currentUser={authState.profile} />
             </motion.div>
+          ) : activeView === 'campaigns' ? (
+            <motion.div
+              key="campaigns"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              {isAdmin ? (
+                <CampaignManager 
+                  customersData={data || []} 
+                  currentUser={authState.profile} 
+                  preloadedClients={preloadedCampaignClients}
+                  onClearPreloadedClients={() => setPreloadedCampaignClients(null)}
+                />
+              ) : (
+                <GestoraCallView currentUser={authState.profile} />
+              )}
+            </motion.div>
           ) : !data ? (
             <motion.div
               key="upload"
@@ -485,7 +516,18 @@ function App() {
           )}
         </AnimatePresence>
       </main>
-      {data && data.length > 0 && <AIChatWidget customers={data} isOpen={isChatOpen} setIsOpen={setIsChatOpen} />}
+      {data && data.length > 0 && (
+        <AIChatWidget 
+          customers={data} 
+          isOpen={isChatOpen} 
+          setIsOpen={setIsChatOpen} 
+          onCreateCampaign={(clients) => {
+            setPreloadedCampaignClients(clients);
+            setActiveView('campaigns');
+            setIsChatOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Sparkles, MessageSquare, X, Send, Trash2, Loader2, Minimize2, ArrowRight, Download } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Send, Trash2, Loader2, Minimize2, ArrowRight, Download, PhoneCall } from 'lucide-react';
 import { performRFMAnalysis } from '../utils/rfmAnalysis';
 import { exportToExcel } from '../utils/dataProcessing';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen }) => {
+const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampaign }) => {
     const [messages, setMessages] = useState([
         {
             role: 'assistant',
@@ -656,23 +656,35 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen }) => {
                                         >
                                             {isUser ? msg.text : parseMarkdown(msg.text)}
 
-                                            {/* Excel Export Button */}
+                                            {/* Excel Export & Campaign Creation Buttons */}
                                             {!isUser && msg.exportData && msg.exportData.length > 0 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        try {
-                                                            exportToExcel(msg.exportData, '');
-                                                        } catch (err) {
-                                                            console.error('Error al exportar Excel:', err);
-                                                            alert('Error al generar el archivo de Excel.');
-                                                        }
-                                                    }}
-                                                    className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold shadow-md hover:shadow-emerald-500/20 transition-all cursor-pointer border-none"
-                                                >
-                                                    <Download size={12} className="animate-bounce" />
-                                                    Descargar lista en Excel ({msg.exportData.length} clientes)
-                                                </button>
+                                                <div className="mt-2.5 flex flex-col gap-2 w-full">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            try {
+                                                                exportToExcel(msg.exportData, '');
+                                                            } catch (err) {
+                                                                console.error('Error al exportar Excel:', err);
+                                                                alert('Error al generar el archivo de Excel.');
+                                                            }
+                                                        }}
+                                                        className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold shadow-md hover:shadow-emerald-500/20 transition-all cursor-pointer border-none"
+                                                    >
+                                                        <Download size={12} className="animate-bounce" />
+                                                        Descargar lista en Excel ({msg.exportData.length} clientes)
+                                                    </button>
+                                                    {onCreateCampaign && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onCreateCampaign(msg.exportData)}
+                                                            className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold shadow-md hover:shadow-indigo-500/20 transition-all cursor-pointer border-none"
+                                                        >
+                                                            <PhoneCall size={12} />
+                                                            Crear Campaña de Llamadas ({msg.exportData.length} clientes)
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </div>

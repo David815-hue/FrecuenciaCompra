@@ -5,12 +5,13 @@ import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
 import ForcePasswordChange from './components/ForcePasswordChange';
 import ThemeToggle from './components/ThemeToggle';
+import AIChatWidget from './components/AIChatWidget';
 import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets, filterDataByDate } from './utils/dataProcessing';
 import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, getLatestOrderDate } from './utils/supabaseUtils';
 import { getCurrentUser, onAuthStateChange, logout } from './utils/authUtils';
 import { runAutomaticSync } from './utils/albatrossService';
-import { Cloud, CloudOff, RefreshCw, Trash2, LogOut, User, Shield } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, Trash2, LogOut, User, Shield, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
   const [data, setData] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeView, setActiveView] = useState('dashboard'); // 'dashboard' | 'admin'
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState({
     lastSync: null,
     isLoading: false,
@@ -398,10 +400,25 @@ function App() {
               </>
             )}
 
+            {/* AI Chat Toggle */}
+            {data && data.length > 0 && (
+              <button
+                onClick={() => setIsChatOpen(prev => !prev)}
+                className={`p-1.5 rounded-full transition-all ml-1 border-l border-slate-200/60 dark:border-slate-700/60 pl-3 ${
+                  isChatOpen
+                    ? 'text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/15 shadow-sm'
+                    : 'text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10'
+                }`}
+                title="Asistente IA"
+              >
+                <Sparkles size={14} className={isChatOpen ? '' : 'animate-pulse'} />
+              </button>
+            )}
+
             {/* Logout */}
             <button
               onClick={handleLogout}
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-full transition-colors ml-2 border-l border-slate-200/60 dark:border-slate-700/60 pl-3"
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-full transition-colors ml-1 border-l border-slate-200/60 dark:border-slate-700/60 pl-3"
               title="Cerrar sesión"
             >
               <LogOut size={14} />
@@ -468,6 +485,7 @@ function App() {
           )}
         </AnimatePresence>
       </main>
+      {data && data.length > 0 && <AIChatWidget customers={data} isOpen={isChatOpen} setIsOpen={setIsChatOpen} />}
     </div>
   );
 }

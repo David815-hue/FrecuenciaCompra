@@ -247,12 +247,13 @@ function App() {
     });
 
     if (latestTime === null) return null;
-    return new Date(latestTime).toLocaleString('es-HN', {
+    const dateObj = new Date(latestTime);
+    const datePart = dateObj.toLocaleDateString('es-HN', {
       day: '2-digit',
       month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
+      timeZone: 'UTC'
     });
+    return `${datePart}, 11:59 p. m.`;
   })();
 
   // Loading state during auth initialization

@@ -233,7 +233,7 @@ const FileUpload = ({ onFilesUploaded, onAutomaticSync, currentUser, onGoToDashb
                 {!loadingDate && latestDate && (
                     <div className="mb-6 text-center">
                         <p className="text-xs text-slate-400 dark:text-slate-500">
-                            Última fecha registrada en nube: <span className="font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md font-mono">{latestDate.toLocaleDateString('es-HN', { year: 'numeric', month: 'short', day: 'numeric' })} {latestDate.toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            Última fecha registrada en nube: <span className="font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md font-mono">{latestDate.toLocaleDateString('es-HN', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })} 11:59 p. m.</span>
                         </p>
                     </div>
                 )}

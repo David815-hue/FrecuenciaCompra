@@ -112,17 +112,43 @@ export const saveCustomersToSupabase = async (orders) => {
 };
 
 /**
+ * Helper to fetch all customers from Supabase, paginating to bypass the max rows limit (e.g. 8999).
+ */
+export const fetchAllCustomers = async (columns = '*') => {
+    let allData = [];
+    let from = 0;
+    const pageSize = 5000;
+    let hasMore = true;
+
+    while (hasMore) {
+        const to = from + pageSize - 1;
+        const { data, error } = await supabase
+            .from(TABLE_NAME)
+            .select(columns)
+            .range(from, to)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        allData = allData.concat(data || []);
+
+        if (!data || data.length < pageSize) {
+            hasMore = false;
+        } else {
+            from += pageSize;
+        }
+    }
+
+    return allData;
+};
+
+/**
  * Load all customers from Supabase
  */
 export const loadCustomersFromSupabase = async () => {
     try {
-        // Fetch all customers
-        const { data: customers, error } = await supabase
-            .from(TABLE_NAME)
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (error) throw error;
+        // Fetch all customers using the paginated helper
+        const customers = await fetchAllCustomers('*');
 
         // Transform to orders format
         const orders = [];
@@ -228,12 +254,8 @@ export const updateCustomer = async (customerId, data) => {
  */
 export const getLatestOrderDate = async () => {
     try {
-        // Fetch only customers to check their matched order dates (those with items)
-        const { data: customers, error } = await supabase
-            .from(TABLE_NAME)
-            .select('orders');
-
-        if (error) throw error;
+        // Fetch only customers' orders column, using paginated helper
+        const customers = await fetchAllCustomers('orders');
 
         let latestDate = null;
 
@@ -272,11 +294,7 @@ export const saveCustomersToSupabaseIncremental = async (orders) => {
         // Note: For very large datasets, this might be heavy. 
         // A more scalable approach would be to query only relevant customers, 
         // but since we're processing a file that could contain anyone, fetching all is often simplest for now.
-        const { data: existingData, error } = await supabase
-            .from(TABLE_NAME)
-            .select('*');
-
-        if (error) throw error;
+        const existingData = await fetchAllCustomers('*');
 
         const existingCustomersMap = {};
         existingData.forEach(customer => {

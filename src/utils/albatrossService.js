@@ -265,6 +265,10 @@ export const runAutomaticSync = async ({ startDate, endDate, isIncremental, onPr
             const orderId = String(rawOrderId).split('-')[0].replace(/^0+/, '').trim();
             if (!orderId) return;
 
+            // Exclude "SOMPOPO TGU" store transactions to avoid order number collisions
+            const storeName = String(row['NombreTienda'] || '').trim().toUpperCase();
+            if (storeName === 'SOMPOPO TGU') return;
+
             // Exclude delivery surcharge code 20000025
             const productCode = String(row['CodProducto'] || row['Codigo'] || '').trim();
             if (productCode === '20000025') return;

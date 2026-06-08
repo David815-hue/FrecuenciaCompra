@@ -95,6 +95,10 @@ export const processRMSData = (data) => {
     const grouped = {};
 
     data.forEach((row) => {
+        // Exclude "SOMPOPO TGU" store transactions to avoid order number collisions
+        const storeName = String(row['NombreTienda'] || '').trim().toUpperCase();
+        if (storeName === 'SOMPOPO TGU') return;
+
         const orderId = String(row['Pedido'] || '');
         if (!orderId) return;
 

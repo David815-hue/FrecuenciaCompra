@@ -15,6 +15,7 @@ import { getCurrentUser, onAuthStateChange, logout } from './utils/authUtils';
 import { runAutomaticSync } from './utils/albatrossService';
 import { Cloud, CloudOff, RefreshCw, Trash2, LogOut, User, Shield, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { supabase } from './config/supabase';
 
 function App() {
   const { theme, toggleTheme } = useTheme();
@@ -32,6 +33,7 @@ function App() {
   const [activeView, setActiveView] = useState('dashboard'); // 'dashboard' | 'admin'
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [preloadedCampaignClients, setPreloadedCampaignClients] = useState(null);
+  const [pendingCallsCount, setPendingCallsCount] = useState(0);
   const [syncStatus, setSyncStatus] = useState({
     lastSync: null,
     isLoading: false,
@@ -60,6 +62,40 @@ function App() {
       unsubscribe();
     };
   }, []);
+
+  const fetchPendingCallsCount = async () => {
+    if (!authState.user?.uid || authState.profile?.role === 'admin') return;
+    try {
+      const { data: assignments, error } = await supabase
+        .from('campaign_assignments')
+        .select(`
+          status,
+          campaigns:campaign_id (
+            status
+          )
+        `)
+        .eq('gestora_uid', authState.user.uid);
+
+      if (error) throw error;
+
+      // Filter local active campaign assignments and count pending status
+      const count = (assignments || []).filter(a => 
+        a.campaigns && 
+        a.campaigns.status === 'active' && 
+        ['pending', 'no_answer', 'callback'].includes(a.status)
+      ).length;
+
+      setPendingCallsCount(count);
+    } catch (err) {
+      console.error("Error fetching pending calls count:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (authState.user && authState.profile?.role === 'gestora') {
+      fetchPendingCallsCount();
+    }
+  }, [authState.user, authState.profile]);
 
   const loadFromCloud = async () => {
     setSyncStatus(prev => ({ ...prev, isLoading: true, error: null }));
@@ -339,12 +375,21 @@ function App() {
               </button>
               <button
                 onClick={() => setActiveView('campaigns')}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${activeView === 'campaigns'
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${activeView === 'campaigns'
                   ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
               >
-                {isAdmin ? 'Campañas' : 'Mis Llamadas'}
+                <span>{isAdmin ? 'Campañas' : 'Mis Llamadas'}</span>
+                {!isAdmin && pendingCallsCount > 0 && (
+                  <span className={`inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold rounded-full transition-all ${
+                    activeView === 'campaigns'
+                      ? 'bg-white text-indigo-600'
+                      : 'bg-indigo-600 text-white dark:bg-indigo-500'
+                  }`}>
+                    {pendingCallsCount}
+                  </span>
+                )}
               </button>
               {isAdmin && (
                 <button
@@ -414,7 +459,7 @@ function App() {
             )}
 
             {/* AI Chat Toggle */}
-            {data && data.length > 0 && (
+            {isAdmin && data && data.length > 0 && (
               <button
                 onClick={() => setIsChatOpen(prev => !prev)}
                 className={`p-1.5 rounded-full transition-all ml-1 border-l border-slate-200/60 dark:border-slate-700/60 pl-3 ${
@@ -471,7 +516,13 @@ function App() {
                   onClearPreloadedClients={() => setPreloadedCampaignClients(null)}
                 />
               ) : (
-                <GestoraCallView currentUser={authState.profile} />
+                <GestoraCallView 
+                  currentUser={authState.profile} 
+                  onAssignmentsChanged={(updatedAssignments) => {
+                    const count = updatedAssignments.filter(a => ['pending', 'no_answer', 'callback'].includes(a.status)).length;
+                    setPendingCallsCount(count);
+                  }}
+                />
               )}
             </motion.div>
           ) : !data ? (
@@ -517,7 +568,7 @@ function App() {
           )}
         </AnimatePresence>
       </main>
-      {data && data.length > 0 && (
+      {isAdmin && data && data.length > 0 && (
         <AIChatWidget 
           customers={data} 
           isOpen={isChatOpen} 

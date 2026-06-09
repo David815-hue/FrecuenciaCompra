@@ -11,7 +11,7 @@ const GestoraCallView = ({ currentUser }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterTab, setFilterTab] = useState('pending'); // 'pending', 'completed', 'all'
+    const [filterTab, setFilterTab] = useState('uncalled'); // 'uncalled', 'retries', 'completed', 'bad_numbers', 'all'
     const [sortBy, setSortBy] = useState('name'); // 'name', 'attempts', 'updated'
     
     // Notes modal/state
@@ -136,10 +136,14 @@ const GestoraCallView = ({ currentUser }) => {
     const filteredAssignments = assignments
         .filter(a => {
             // Tab filter
-            if (filterTab === 'pending') {
-                return PENDING_STATUSES.includes(a.status);
+            if (filterTab === 'uncalled') {
+                return a.status === 'pending';
+            } else if (filterTab === 'retries') {
+                return a.status === 'no_answer' || a.status === 'callback';
             } else if (filterTab === 'completed') {
-                return COMPLETED_STATUSES.includes(a.status);
+                return a.status === 'sale' || a.status === 'not_interested';
+            } else if (filterTab === 'bad_numbers') {
+                return a.status === 'unreachable';
             }
             return true; // 'all'
         })
@@ -173,6 +177,15 @@ const GestoraCallView = ({ currentUser }) => {
         sales: assignments.filter(a => a.status === 'sale').length
     };
 
+    // Counts for tabs
+    const counts = {
+        total: assignments.length,
+        uncalled: assignments.filter(a => a.status === 'pending').length,
+        retries: assignments.filter(a => a.status === 'no_answer' || a.status === 'callback').length,
+        completed: assignments.filter(a => a.status === 'sale' || a.status === 'not_interested').length,
+        bad_numbers: assignments.filter(a => a.status === 'unreachable').length
+    };
+
     const getStatusStyle = (status) => {
         switch (status) {
             case 'pending':
@@ -203,7 +216,59 @@ const GestoraCallView = ({ currentUser }) => {
         };
         return map[status] || status;
     };
+    const getFormattedLatestOrderDate = (assignment) => {
+        const orders = assignment.client_extra?.orders || [];
+        if (orders.length === 0) return null;
+        
+        const selectedProducts = assignment.campaigns?.source_meta?.selectedProducts || [];
+        const hasSelectedProducts = Array.isArray(selectedProducts) && selectedProducts.length > 0;
+        
+        let filteredOrders = orders;
+        if (hasSelectedProducts) {
+            const selectedSkus = new Set(selectedProducts.map(p => String(p.sku || '').toLowerCase().trim()));
+            filteredOrders = orders.filter(order => 
+                (order.items || []).some(item => 
+                    item.sku && selectedSkus.has(String(item.sku).toLowerCase().trim())
+                )
+            );
+            
+            // Fallback to all orders if filtering by SKU yields no matches
+            if (filteredOrders.length === 0) {
+                filteredOrders = orders;
+            }
+        }
+        
+        let latestTime = null;
+        filteredOrders.forEach(order => {
+            if (order.orderDate) {
+                const dateStr = String(order.orderDate).split(' ')[0];
+                const date = new Date(dateStr);
+                if (!isNaN(date.getTime())) {
+                    if (latestTime === null || date.getTime() > latestTime) {
+                        latestTime = date.getTime();
+                    }
+                }
+            }
+        });
 
+        if (latestTime === null) return null;
+        return new Date(latestTime).toLocaleDateString('es-HN', { 
+            day: '2-digit', 
+            month: 'short', 
+            year: 'numeric', 
+            timeZone: 'UTC' 
+        });
+    };
+
+    const getDialUrl = (phone) => {
+        if (!phone) return '';
+        const cleanPhone = String(phone).replace(/\D/g, '');
+        let localPhone = cleanPhone;
+        if (cleanPhone.length > 8 && cleanPhone.startsWith('504')) {
+            localPhone = cleanPhone.slice(-8);
+        }
+        return `tel:4${localPhone}`;
+    };
     return (
         <div className="space-y-6">
             {/* Header / Stats Summary */}
@@ -247,16 +312,18 @@ const GestoraCallView = ({ currentUser }) => {
             {/* Filter and search bar */}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-4">
                 {/* Tabs */}
-                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950/40 p-1 rounded-xl w-full md:w-auto">
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950/40 p-1 rounded-xl w-full md:w-auto overflow-x-auto">
                     {[
-                        { id: 'pending', label: `Pendientes (${stats.pending})` },
-                        { id: 'completed', label: `Completadas (${stats.completed})` },
-                        { id: 'all', label: `Todas (${stats.total})` }
+                        { id: 'uncalled', label: `Por Llamar (${counts.uncalled})` },
+                        { id: 'retries', label: `Reintentos (${counts.retries})` },
+                        { id: 'completed', label: `Completadas (${counts.completed})` },
+                        { id: 'bad_numbers', label: `Números Malos (${counts.bad_numbers})` },
+                        { id: 'all', label: `Todas (${counts.total})` }
                     ].map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setFilterTab(tab.id)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                                 filterTab === tab.id
                                     ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
                                     : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
@@ -310,7 +377,7 @@ const GestoraCallView = ({ currentUser }) => {
                     <PhoneOff className="mx-auto text-slate-300 dark:text-slate-700 mb-4" size={48} />
                     <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">No hay llamadas</h3>
                     <p className="text-sm text-slate-500 mt-1">
-                        {filterTab === 'pending' ? '🎉 ¡Felicidades! Has completado todas tus llamadas de campañas activas.' : 'No tienes llamadas asignadas en esta pestaña.'}
+                        {filterTab === 'uncalled' ? '🎉 ¡Felicidades! Has completado todas tus llamadas de campañas activas.' : 'No tienes llamadas asignadas en esta pestaña.'}
                     </p>
                 </div>
             ) : (
@@ -336,12 +403,19 @@ const GestoraCallView = ({ currentUser }) => {
                                         <h3 className="font-bold text-slate-800 dark:text-white text-base">
                                             {a.client_name}
                                         </h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1 uppercase">
-                                            <span>{a.client_city || 'Ciudad Desconocida'}</span>
-                                            <span>•</span>
-                                            <span className="font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded">
-                                                {a.client_segment || 'S/D'}
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex flex-col gap-0.5 uppercase">
+                                            <span className="flex items-center gap-1.5">
+                                                <span>{a.client_city || 'Ciudad Desconocida'}</span>
+                                                <span>•</span>
+                                                <span className="font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[9px]">
+                                                    DNI: {a.client_extra?.identity || 'S/D'}
+                                                </span>
                                             </span>
+                                            {getFormattedLatestOrderDate(a) && (
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium normal-case mt-0.5">
+                                                    Últ. compra: {getFormattedLatestOrderDate(a)}
+                                                </span>
+                                            )}
                                         </p>
                                     </div>
                                     
@@ -356,7 +430,7 @@ const GestoraCallView = ({ currentUser }) => {
                                 {/* Phone Click-to-Call */}
                                 {a.client_phone && (
                                     <a 
-                                        href={`tel:${a.client_phone}`}
+                                        href={getDialUrl(a.client_phone)}
                                         className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-semibold transition-colors w-fit"
                                     >
                                         <Phone size={13} />
@@ -466,7 +540,7 @@ const GestoraCallView = ({ currentUser }) => {
 
                             <textarea
                                 rows="3"
-                                placeholder="Escribe aquí, ej: Dijo que está interesado en el descuento del 20% pero llama el lunes."
+                                placeholder="Escribe observaciones clave del cliente para revisión de supervisores..."
                                 value={noteText}
                                 onChange={(e) => setNoteText(e.target.value)}
                                 className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white placeholder:text-slate-400 resize-none"

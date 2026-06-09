@@ -58,16 +58,16 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
 
     // Helper for heatmap color
     const getIntensityClass = (count) => {
-        if (!count) return 'bg-slate-50/50 dark:bg-slate-900/50 text-slate-300 dark:text-slate-600 border-r border-slate-100/50 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer';
+        if (!count) return 'bg-slate-50/55 dark:bg-slate-900/40 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer';
 
         // 1 purchase: Green
-        if (count === 1) return 'bg-emerald-300 dark:bg-emerald-500/80 text-emerald-900 dark:text-white font-bold border-r border-emerald-400/20 dark:border-emerald-500/30 hover:bg-emerald-400 dark:hover:bg-emerald-500 cursor-pointer shadow-sm';
+        if (count === 1) return 'bg-emerald-400/85 dark:bg-emerald-500/80 text-emerald-950 dark:text-white font-semibold hover:bg-emerald-400 dark:hover:bg-emerald-500 cursor-pointer shadow-sm';
 
         // 2-3 purchases: Orange
-        if (count <= 3) return 'bg-amber-400 dark:bg-amber-500/90 text-amber-950 dark:text-white font-bold border-r border-amber-500/20 dark:border-amber-500/30 hover:bg-amber-500 dark:hover:bg-amber-600 cursor-pointer shadow-sm';
+        if (count <= 3) return 'bg-amber-400/90 dark:bg-amber-500/90 text-amber-950 dark:text-white font-semibold hover:bg-amber-400 dark:hover:bg-amber-500 cursor-pointer shadow-sm';
 
         // 4+ purchases: Red
-        return 'bg-rose-500 dark:bg-rose-600 text-white font-bold shadow-inner border-r border-rose-600/20 dark:border-rose-500/30 hover:bg-rose-600 dark:hover:bg-rose-700 cursor-pointer';
+        return 'bg-rose-500 dark:bg-rose-600 text-white font-semibold hover:bg-rose-600 dark:hover:bg-rose-700 cursor-pointer';
     };
 
     const handleMonthClick = (key, data) => {
@@ -90,7 +90,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
     };
 
     return (
-        <div className="flex w-full min-w-[200px] border border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-hidden divide-x divide-slate-100 dark:divide-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm transition-colors duration-300">
+        <div className="flex w-full min-w-[200px] border border-slate-200/60 dark:border-slate-700/60 rounded-xl overflow-x-auto divide-x divide-slate-100 dark:divide-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm transition-colors duration-300">
             {hasOlderOrders && (
                 <div 
                     className="flex items-center justify-center w-8 h-9 text-[11px] font-black text-indigo-650 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/20 cursor-help shrink-0 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/40 transition-colors"
@@ -105,7 +105,8 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                 const count = data ? data.count : 0;
 
                 const monthLabel = format(dateObj, 'MMM', { locale: es });
-                const monthAbbr = monthLabel.substring(0, 3); // First 3 letters
+                const cleanAbbr = monthLabel.replace('.', '').substring(0, 3);
+                const monthAbbrCapitalized = cleanAbbr.charAt(0).toUpperCase() + cleanAbbr.slice(1);
                 const isHovered = hoveredMonth === key;
                 const isShaking = shakingMonth === key;
 
@@ -117,7 +118,7 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                     <motion.div
                         key={key}
                         className={`
-                            relative flex-1 h-9 flex items-center justify-center text-[10px] transition-all duration-200
+                            relative flex-1 h-9 flex items-center justify-center text-[10px] transition-all duration-200 min-w-[28px] md:min-w-0
                             ${getIntensityClass(count)}
                             ${count > 0 ? 'active:scale-95' : ''}
                         `}
@@ -127,9 +128,9 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
                         onMouseLeave={() => setHoveredMonth(null)}
                         onClick={() => handleMonthClick(key, data)}
                     >
-                        {/* Label - 3 letters */}
-                        <span className={`relative z-10 flex flex-col items-center leading-none text-[9px] font-bold ${count > 3 ? 'text-white/90' : ''} ${!count ? 'opacity-60' : ''}`}>
-                            {monthAbbr}
+                        {/* Label - 3 letters capitalized */}
+                        <span className={`relative z-10 flex flex-col items-center leading-none text-[9px] font-bold ${count > 3 ? 'text-white/90' : ''} ${!count ? 'opacity-85' : ''}`}>
+                            {monthAbbrCapitalized}
                         </span>
 
                         {/* Year Separator Line - only when year changes */}

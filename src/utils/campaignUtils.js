@@ -222,7 +222,8 @@ export const getAssignmentsByGestora = async (gestoraUid) => {
                 campaigns:campaign_id (
                     name,
                     description,
-                    status
+                    status,
+                    source_meta
                 )
             `)
             .eq('gestora_uid', gestoraUid)

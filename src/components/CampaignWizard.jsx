@@ -11,6 +11,19 @@ import { performRFMAnalysis } from '../utils/rfmAnalysis';
 import { getAllUsers } from '../utils/authUtils';
 import { createCampaign, assignClients } from '../utils/campaignUtils';
 import { GESTORES_MAP } from '../config/gestores';
+import GlassDatePicker from './GlassDatePicker';
+import GlassSelect from './GlassSelect';
+
+const recencyOptions = [
+    { value: '30', label: 'No han comprado en los últimos 30 días (30+ días)' },
+    { value: '60', label: 'No han comprado en los últimos 60 días (60+ días)' },
+    { value: '90', label: 'No han comprado en los últimos 90 días (90+ días)' },
+    { value: '1-30', label: 'Inactividad reciente: entre 1 y 30 días' },
+    { value: '30-60', label: 'Inactividad media: entre 30 y 60 días' },
+    { value: '60-90', label: 'Inactividad alta: entre 60 y 90 días' },
+    { value: 'custom', label: 'Rango personalizado de días...' },
+    { value: 'date_range', label: 'Rango de fechas de última compra (Calendario)...' }
+];
 
 const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCampaignCreated, initialSelectedClients = null }) => {
     const [step, setStep] = useState(1);
@@ -26,7 +39,12 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
     const [filterCity, setFilterCity] = useState([]); // Array of selected cities
     const [showCityDropdown, setShowCityDropdown] = useState(false);
     const cityDropdownRef = useRef(null);
-    const [filterRecency, setFilterRecency] = useState('all'); // 'all', '30', '60', '90', '180'
+    const [filterRecency, setFilterRecency] = useState('30'); // '30', '60', '90', '1-30', '30-60', '60-90', 'custom', 'date_range'
+    const [customRecencyMin, setCustomRecencyMin] = useState('');
+    const [customRecencyMax, setCustomRecencyMax] = useState('');
+    const [customRecencyDateStart, setCustomRecencyDateStart] = useState('');
+    const [customRecencyDateEnd, setCustomRecencyDateEnd] = useState('');
+    const [filterMinPurchaseCount, setFilterMinPurchaseCount] = useState(false);
     const [filterSku, setFilterSku] = useState(''); // SKU search query
     const [selectedProducts, setSelectedProducts] = useState([]); // Array of { sku, description }
     const [showSkuDropdown, setShowSkuDropdown] = useState(false);
@@ -51,6 +69,61 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
     const [campaignDescription, setCampaignDescription] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
+
+    // Find the latest order date in the passed customersData
+    const dbLatestOrderDate = useMemo(() => {
+        if (!customersData || customersData.length === 0) return null;
+        let latest = null;
+        customersData.forEach(item => {
+            // Case 1: Nested orders array
+            if (item.orders && Array.isArray(item.orders)) {
+                item.orders.forEach(order => {
+                    if (order.orderDate && order.items && order.items.length > 0) {
+                        const dateStr = String(order.orderDate).split(' ')[0];
+                        const date = new Date(dateStr);
+                        if (!isNaN(date.getTime())) {
+                            if (latest === null || date.getTime() > latest.getTime()) {
+                                latest = date;
+                            }
+                        }
+                    }
+                });
+            } 
+            // Case 2: Flat order structure (e.g. parsed loadCustomersFromSupabase output)
+            else if (item.orderDate && item.items && item.items.length > 0) {
+                const dateStr = String(item.orderDate).split(' ')[0];
+                const date = new Date(dateStr);
+                if (!isNaN(date.getTime())) {
+                    if (latest === null || date.getTime() > latest.getTime()) {
+                        latest = date;
+                    }
+                }
+            }
+        });
+        return latest;
+    }, [customersData]);
+
+    const formatDateToYYYYMMDD = (date) => {
+        if (!date) return '';
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // Set default dates when dbLatestOrderDate is resolved or filterRecency changes
+    useEffect(() => {
+        if (filterRecency === 'date_range' && dbLatestOrderDate) {
+            const endDateStr = formatDateToYYYYMMDD(dbLatestOrderDate);
+            setCustomRecencyDateEnd(endDateStr);
+            
+            // Default start date to 30 days before the latest date
+            const startDate = new Date(dbLatestOrderDate.getTime());
+            startDate.setUTCDate(startDate.getUTCDate() - 30);
+            const startDateStr = formatDateToYYYYMMDD(startDate);
+            setCustomRecencyDateStart(startDateStr);
+        }
+    }, [filterRecency, dbLatestOrderDate]);
 
     // Auto-populate when preloaded clients are passed from chatbot
     useEffect(() => {
@@ -244,7 +317,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
             const filtered = applyFilters();
             setPreviewCount(filtered.length);
         }
-    }, [sourceType, filterSegment, filterCity, filterRecency, filterSku, selectedProducts, rawCustomersAnalyzed]);
+    }, [sourceType, filterSegment, filterCity, filterRecency, customRecencyMin, customRecencyMax, customRecencyDateStart, customRecencyDateEnd, filterMinPurchaseCount, filterSku, selectedProducts, rawCustomersAnalyzed]);
 
     // Apply database filters
     const applyFilters = () => {
@@ -261,22 +334,80 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
             list = list.filter(c => c.city && citySet.has(c.city.toUpperCase().trim()));
         }
 
-        // 3. Filter by recency (days)
+        // Helper to get client latest purchase date
+        const getLatestPurchaseTime = (client) => {
+            const orders = client.orders || [];
+            if (orders.length === 0) return null;
+            let latestTime = null;
+            orders.forEach(order => {
+                if (order.orderDate) {
+                    const dateStr = String(order.orderDate).split(' ')[0];
+                    const date = new Date(dateStr);
+                    if (!isNaN(date.getTime())) {
+                        if (latestTime === null || date.getTime() > latestTime) {
+                            latestTime = date.getTime();
+                        }
+                    }
+                }
+            });
+            return latestTime;
+        };
+
+        // 3. Filter by inactivity (days since last purchase)
         if (filterRecency !== 'all') {
-            const daysLimit = parseInt(filterRecency);
-            list = list.filter(c => c.rfm?.recency >= daysLimit && c.rfm?.recency !== Infinity);
+            if (filterRecency === '30') {
+                list = list.filter(c => c.rfm?.recency >= 30 && c.rfm?.recency !== Infinity);
+            } else if (filterRecency === '60') {
+                list = list.filter(c => c.rfm?.recency >= 60 && c.rfm?.recency !== Infinity);
+            } else if (filterRecency === '90') {
+                list = list.filter(c => c.rfm?.recency >= 90 && c.rfm?.recency !== Infinity);
+            } else if (filterRecency === '1-30') {
+                list = list.filter(c => c.rfm?.recency >= 1 && c.rfm?.recency <= 30 && c.rfm?.recency !== Infinity);
+            } else if (filterRecency === '30-60') {
+                list = list.filter(c => c.rfm?.recency >= 30 && c.rfm?.recency <= 60 && c.rfm?.recency !== Infinity);
+            } else if (filterRecency === '60-90') {
+                list = list.filter(c => c.rfm?.recency >= 60 && c.rfm?.recency <= 90 && c.rfm?.recency !== Infinity);
+            } else if (filterRecency === 'custom') {
+                const min = parseInt(customRecencyMin);
+                const max = parseInt(customRecencyMax);
+                list = list.filter(c => {
+                    if (c.rfm?.recency === Infinity || c.rfm?.recency === undefined || c.rfm?.recency === null) return false;
+                    const matchesMin = isNaN(min) || c.rfm.recency >= min;
+                    const matchesMax = isNaN(max) || c.rfm.recency <= max;
+                    return matchesMin && matchesMax;
+                });
+            } else if (filterRecency === 'date_range') {
+                const start = customRecencyDateStart ? new Date(customRecencyDateStart + 'T00:00:00').getTime() : null;
+                const end = customRecencyDateEnd ? new Date(customRecencyDateEnd + 'T23:59:59').getTime() : null;
+                
+                list = list.filter(c => {
+                    const latestPurchaseTime = getLatestPurchaseTime(c);
+                    if (latestPurchaseTime === null) return false;
+                    const matchesStart = start === null || latestPurchaseTime >= start;
+                    const matchesEnd = end === null || latestPurchaseTime <= end;
+                    return matchesStart && matchesEnd;
+                });
+            }
         }
 
-        // 4. Filter by SKU/Product (multiselect)
+        // 4. Filter by SKU/Product (multiselect) and purchase count
         if (selectedProducts && selectedProducts.length > 0) {
             const selectedSkus = new Set(selectedProducts.map(p => p.sku.toLowerCase().trim()));
-            list = list.filter(c => 
-                c.orders && c.orders.some(order => 
+            list = list.filter(c => {
+                if (!c.orders) return false;
+                
+                const matchingOrders = c.orders.filter(order => 
                     (order.items || []).some(item => 
                         item.sku && selectedSkus.has(String(item.sku).toLowerCase().trim())
                     )
-                )
-            );
+                );
+                
+                if (filterMinPurchaseCount) {
+                    return matchingOrders.length >= 2;
+                } else {
+                    return matchingOrders.length >= 1;
+                }
+            });
         }
 
         return list;
@@ -554,6 +685,11 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                 filterSegment: sourceType === 'filter' ? filterSegment : null,
                 filterCity: sourceType === 'filter' ? filterCity : null,
                 filterRecency: sourceType === 'filter' ? filterRecency : null,
+                customRecencyMin: sourceType === 'filter' && filterRecency === 'custom' ? customRecencyMin : null,
+                customRecencyMax: sourceType === 'filter' && filterRecency === 'custom' ? customRecencyMax : null,
+                customRecencyDateStart: sourceType === 'filter' && filterRecency === 'date_range' ? customRecencyDateStart : null,
+                customRecencyDateEnd: sourceType === 'filter' && filterRecency === 'date_range' ? customRecencyDateEnd : null,
+                filterMinPurchaseCount: sourceType === 'filter' ? filterMinPurchaseCount : false,
                 selectedProducts: sourceType === 'filter' ? selectedProducts : null,
                 aiPrompt: sourceType === 'ai' ? aiPrompt : null
             };
@@ -594,6 +730,12 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
             setFilterCity([]);
             setFilterSku('');
             setSelectedProducts([]);
+            setFilterRecency('all');
+            setCustomRecencyMin('');
+            setCustomRecencyMax('');
+            setCustomRecencyDateStart('');
+            setCustomRecencyDateEnd('');
+            setFilterMinPurchaseCount(false);
             setShowAiConfirmation(false);
             setAiPendingClients([]);
         } catch (error) {
@@ -615,25 +757,22 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                 className="w-full max-w-3xl overflow-hidden glassmorphism bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]"
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
+                <div className="flex items-center justify-between py-3 px-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <span>Crear Campaña de Llamadas</span>
                         </h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Genera listas de llamadas y repártelas equitativamente entre las gestoras.
-                        </p>
                     </div>
                     <button 
                         onClick={onClose}
-                        className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="p-1.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
-                        <X size={20} />
+                        <X size={18} />
                     </button>
                 </div>
 
                 {/* Progress Stepper */}
-                <div className="flex justify-between items-center px-8 py-4 bg-slate-50/30 dark:bg-slate-950/5 border-b border-slate-100 dark:border-slate-800/50">
+                <div className="flex justify-between items-center px-8 py-2.5 bg-slate-50/30 dark:bg-slate-950/5 border-b border-slate-100 dark:border-slate-800/50">
                     {[
                         { num: 1, label: 'Clientes' },
                         { num: 2, label: 'Gestoras' },
@@ -793,102 +932,150 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
 
                                          {/* Selected Products Chips */}
                                          {selectedProducts.length > 0 && (
-                                             <div className="flex flex-wrap gap-2 mt-2 pt-1">
-                                                 {selectedProducts.map(prod => (
-                                                     <div 
-                                                         key={prod.sku} 
-                                                         className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-full border border-blue-100/50 dark:border-blue-800/30"
-                                                     >
-                                                         <span className="font-semibold">{prod.sku}</span>
-                                                         <span className="opacity-80 max-w-[180px] truncate">{prod.description}</span>
-                                                         <button 
-                                                             type="button"
-                                                             onClick={() => setSelectedProducts(prev => prev.filter(p => p.sku !== prod.sku))}
-                                                             className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors focus:outline-none ml-0.5 cursor-pointer"
+                                             <div>
+                                                 <div className="flex flex-wrap gap-2 mt-2 pt-1">
+                                                     {selectedProducts.map(prod => (
+                                                         <div 
+                                                             key={prod.sku} 
+                                                             className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-full border border-blue-100/50 dark:border-blue-800/30"
                                                          >
-                                                             <X size={12} />
-                                                         </button>
-                                                     </div>
-                                                 ))}
+                                                             <span className="font-semibold">{prod.sku}</span>
+                                                             <span className="opacity-80 max-w-[180px] truncate">{prod.description}</span>
+                                                             <button 
+                                                                 type="button"
+                                                                 onClick={() => setSelectedProducts(prev => prev.filter(p => p.sku !== prod.sku))}
+                                                                 className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors focus:outline-none ml-0.5 cursor-pointer"
+                                                             >
+                                                                 <X size={12} />
+                                                             </button>
+                                                         </div>
+                                                     ))}
+                                                 </div>
+                                                 
+                                                 <div className="mt-3 flex items-center gap-2 bg-blue-50/20 dark:bg-slate-900/10 p-2 rounded-xl border border-dashed border-blue-200/50 dark:border-slate-800/30 w-fit">
+                                                     <input 
+                                                         type="checkbox"
+                                                         id="filterMinPurchaseCount"
+                                                         checked={filterMinPurchaseCount}
+                                                         onChange={(e) => setFilterMinPurchaseCount(e.target.checked)}
+                                                         className="rounded border-slate-350 dark:border-slate-850 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                                                     />
+                                                     <label 
+                                                         htmlFor="filterMinPurchaseCount"
+                                                         className="text-xs font-medium text-slate-600 dark:text-slate-400 select-none cursor-pointer"
+                                                     >
+                                                         Clientes que han comprado más de 1 vez (2 veces o más) de ese medicamento
+                                                     </label>
+                                                 </div>
                                              </div>
                                          )}
                                     </div>
 
-                                    {/* 2. Segmento & Ciudad */}
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Segmento RFM</label>
-                                            <select 
-                                                value={filterSegment}
-                                                onChange={(e) => setFilterSegment(e.target.value)}
-                                                className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2.5 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white"
-                                            >
-                                                <option value="all">Todos los segmentos</option>
-                                                {segments.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.label}</option>
-                                                ))}
-                                            </select>
-                                        </div>
+                                    {/* 2. Ciudad */}
+                                    <div className="space-y-1.5 relative w-full" ref={cityDropdownRef}>
+                                         <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Ciudad</label>
+                                         <button
+                                             type="button"
+                                             onClick={() => setShowCityDropdown(!showCityDropdown)}
+                                             className="w-full text-left text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2.5 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white flex items-center justify-between shadow-sm cursor-pointer"
+                                         >
+                                             <span className="truncate max-w-[200px]">{cityButtonText}</span>
+                                             <ChevronDown size={16} className="text-slate-400 shrink-0" />
+                                         </button>
 
-                                        <div className="space-y-1.5 relative" ref={cityDropdownRef}>
-                                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Ciudad</label>
-                                             <button
-                                                 type="button"
-                                                 onClick={() => setShowCityDropdown(!showCityDropdown)}
-                                                 className="w-full text-left text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2.5 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white flex items-center justify-between shadow-sm cursor-pointer"
-                                             >
-                                                 <span className="truncate max-w-[200px]">{cityButtonText}</span>
-                                                 <ChevronDown size={16} className="text-slate-400 shrink-0" />
-                                             </button>
-
-                                             {showCityDropdown && (
-                                                 <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 py-1.5 max-h-48 overflow-y-auto">
-                                                     <button
-                                                         type="button"
-                                                         onClick={() => setFilterCity([])}
-                                                         className="w-full text-left px-3.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-850/50 border-b border-slate-100 dark:border-slate-800 transition-colors cursor-pointer"
-                                                     >
-                                                         Limpiar selección (Todas)
-                                                     </button>
-                                                     {uniqueCities.map(city => {
-                                                         const isSelected = filterCity.includes(city);
-                                                         return (
-                                                             <button
-                                                                 key={city}
-                                                                 type="button"
-                                                                 onClick={() => toggleCity(city)}
-                                                                 className="w-full text-left px-3.5 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors flex items-center justify-between cursor-pointer"
-                                                             >
-                                                                 <span>{formatCityName(city)}</span>
-                                                                 {isSelected ? (
-                                                                     <CheckSquare size={16} className="text-blue-500 shrink-0" />
-                                                                 ) : (
-                                                                     <Square size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                                                                 )}
-                                                             </button>
-                                                         );
-                                                     })}
-                                                 </div>
-                                             )}
-                                         </div>
+                                         {showCityDropdown && (
+                                             <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 py-1.5 max-h-48 overflow-y-auto">
+                                                 <button
+                                                     type="button"
+                                                     onClick={() => setFilterCity([])}
+                                                     className="w-full text-left px-3.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-850/50 border-b border-slate-100 dark:border-slate-800 transition-colors cursor-pointer"
+                                                 >
+                                                     Limpiar selección (Todas)
+                                                 </button>
+                                                 {uniqueCities.map(city => {
+                                                     const isSelected = filterCity.includes(city);
+                                                     return (
+                                                         <button
+                                                             key={city}
+                                                             type="button"
+                                                             onClick={() => toggleCity(city)}
+                                                             className="w-full text-left px-3.5 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors flex items-center justify-between cursor-pointer"
+                                                         >
+                                                             <span>{formatCityName(city)}</span>
+                                                             {isSelected ? (
+                                                                 <CheckSquare size={16} className="text-blue-500 shrink-0" />
+                                                             ) : (
+                                                                 <Square size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                                                             )}
+                                                         </button>
+                                                     );
+                                                 })}
+                                             </div>
+                                         )}
                                     </div>
 
-                                    {/* 3. Recencia de Compras */}
-                                    <div className="grid grid-cols-2 gap-4">
+                                    {/* 3. Inactividad (Días sin comprar) */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
-                                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Recencia de Compras</label>
-                                             <select 
+                                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Inactividad (Días sin comprar)</label>
+                                             <GlassSelect 
                                                  value={filterRecency}
-                                                 onChange={(e) => setFilterRecency(e.target.value)}
-                                                 className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2.5 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white"
-                                             >
-                                                 <option value="all">Cualquier recencia (compraron recientemente o no)</option>
-                                                 <option value="30">Sin compras en los últimos 30 días (1 mes)</option>
-                                                 <option value="60">Sin compras en los últimos 60 días (2 meses)</option>
-                                                 <option value="90">Sin compras en los últimos 90 días (3 meses)</option>
-                                                 <option value="180">Sin compras en los últimos 180 días (6 meses)</option>
-                                             </select>
-                                         </div>
+                                                 onChange={setFilterRecency}
+                                                 options={recencyOptions}
+                                             />
+                                        </div>
+
+                                        {filterRecency === 'custom' && (
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Especificar rango de días sin comprar</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="number"
+                                                        min="0"
+                                                        placeholder="Mín. días"
+                                                        value={customRecencyMin}
+                                                        onChange={(e) => setCustomRecencyMin(e.target.value)}
+                                                        className="w-1/2 text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2.5 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white"
+                                                    />
+                                                    <span className="text-slate-400 dark:text-slate-600 text-xs">a</span>
+                                                    <input 
+                                                        type="number"
+                                                        min="0"
+                                                        placeholder="Máx. días"
+                                                        value={customRecencyMax}
+                                                        onChange={(e) => setCustomRecencyMax(e.target.value)}
+                                                        className="w-1/2 text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2.5 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {filterRecency === 'date_range' && (
+                                             <div className="space-y-1.5">
+                                                 <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex justify-between items-center">
+                                                     <span>Rango de fechas de última compra</span>
+                                                 </label>
+                                                 <div className="flex items-center gap-2">
+                                                     <GlassDatePicker 
+                                                         value={customRecencyDateStart}
+                                                         onChange={setCustomRecencyDateStart}
+                                                         maxDate={dbLatestOrderDate ? formatDateToYYYYMMDD(dbLatestOrderDate) : undefined}
+                                                         placeholder="Fecha inicial"
+                                                         align="left"
+                                                         position="up"
+                                                     />
+                                                     <span className="text-slate-450 dark:text-slate-500 text-xs font-medium px-1">al</span>
+                                                     <GlassDatePicker 
+                                                         value={customRecencyDateEnd}
+                                                         onChange={setCustomRecencyDateEnd}
+                                                         maxDate={dbLatestOrderDate ? formatDateToYYYYMMDD(dbLatestOrderDate) : undefined}
+                                                         placeholder="Fecha final"
+                                                         align="right"
+                                                         position="up"
+                                                     />
+                                                 </div>
+                                             </div>
+                                         )}
                                     </div>
 
                                     <div className="p-4 bg-blue-50/50 dark:bg-slate-950/40 rounded-xl flex items-center justify-between border border-blue-100/50 dark:border-slate-800/40">

@@ -106,6 +106,30 @@ export const updateCampaignStatus = async (campaignId, status) => {
 };
 
 /**
+ * Updates the campaign's script/description.
+ * 
+ * @param {string} campaignId
+ * @param {string} script
+ * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ */
+export const updateCampaignScript = async (campaignId, script) => {
+    try {
+        const { data, error } = await supabase
+            .from('campaigns')
+            .update({ description: script })
+            .eq('id', campaignId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return { success: true, data };
+    } catch (error) {
+        console.error('❌ updateCampaignScript: Error:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
  * Distributes clients randomly and equitably among gestoras, and inserts them in batches.
  * 
  * @param {string} campaignId
@@ -281,7 +305,7 @@ export const updateAssignmentStatus = async (assignmentId, { status, notes = '',
         if (fetchError) throw fetchError;
 
         let newAttempts = current.attempts || 0;
-        if (incrementAttempts || ['no_answer', 'callback', 'unreachable'].includes(status)) {
+        if (incrementAttempts || ['no_answer', 'callback'].includes(status)) {
             newAttempts += 1;
         }
 
@@ -341,14 +365,21 @@ export const getCampaignStats = async (campaignId) => {
             not_interested: 0,
             callback: 0,
             unreachable: 0,
+            closed: 0,
             total_attempts: 0,
             byGestora: {}
         };
 
         data.forEach(item => {
+            const isClosed = (item.attempts || 0) >= 3 && ['no_answer', 'callback'].includes(item.status);
+
             // Global status count
-            if (stats[item.status] !== undefined) {
-                stats[item.status]++;
+            if (isClosed) {
+                stats.closed++;
+            } else {
+                if (stats[item.status] !== undefined) {
+                    stats[item.status]++;
+                }
             }
             stats.total_attempts += item.attempts || 0;
 
@@ -365,6 +396,7 @@ export const getCampaignStats = async (campaignId) => {
                     not_interested: 0,
                     callback: 0,
                     unreachable: 0,
+                    closed: 0,
                     attempts: 0
                 };
             }
@@ -372,8 +404,12 @@ export const getCampaignStats = async (campaignId) => {
             const gStats = stats.byGestora[gUid];
             gStats.total++;
             gStats.attempts += item.attempts || 0;
-            if (gStats[item.status] !== undefined) {
-                gStats[item.status]++;
+            if (isClosed) {
+                gStats.closed++;
+            } else {
+                if (gStats[item.status] !== undefined) {
+                    gStats[item.status]++;
+                }
             }
         });
 

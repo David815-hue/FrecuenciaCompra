@@ -12,18 +12,6 @@ import { getAllUsers } from '../utils/authUtils';
 import { createCampaign, assignClients } from '../utils/campaignUtils';
 import { GESTORES_MAP } from '../config/gestores';
 import GlassDatePicker from './GlassDatePicker';
-import GlassSelect from './GlassSelect';
-
-const recencyOptions = [
-    { value: '30', label: 'No han comprado en los últimos 30 días (30+ días)' },
-    { value: '60', label: 'No han comprado en los últimos 60 días (60+ días)' },
-    { value: '90', label: 'No han comprado en los últimos 90 días (90+ días)' },
-    { value: '1-30', label: 'Inactividad reciente: entre 1 y 30 días' },
-    { value: '30-60', label: 'Inactividad media: entre 30 y 60 días' },
-    { value: '60-90', label: 'Inactividad alta: entre 60 y 90 días' },
-    { value: 'custom', label: 'Rango personalizado de días...' },
-    { value: 'date_range', label: 'Rango de fechas de última compra (Calendario)...' }
-];
 
 const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCampaignCreated, initialSelectedClients = null }) => {
     const [step, setStep] = useState(1);
@@ -39,9 +27,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
     const [filterCity, setFilterCity] = useState([]); // Array of selected cities
     const [showCityDropdown, setShowCityDropdown] = useState(false);
     const cityDropdownRef = useRef(null);
-    const [filterRecency, setFilterRecency] = useState('30'); // '30', '60', '90', '1-30', '30-60', '60-90', 'custom', 'date_range'
-    const [customRecencyMin, setCustomRecencyMin] = useState('');
-    const [customRecencyMax, setCustomRecencyMax] = useState('');
+    const [filterRecency] = useState('date_range');
     const [customRecencyDateStart, setCustomRecencyDateStart] = useState('');
     const [customRecencyDateEnd, setCustomRecencyDateEnd] = useState('');
     const [filterMinPurchaseCount, setFilterMinPurchaseCount] = useState(false);
@@ -57,6 +43,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
     const [aiError, setAiError] = useState('');
     const [showAiConfirmation, setShowAiConfirmation] = useState(false);
     const [aiPendingClients, setAiPendingClients] = useState([]);
+    const [aiQueryDateRange, setAiQueryDateRange] = useState(null); // { start, end, type } from intent
 
     // Step 2: Gestoras selection state
     const [allGestoras, setAllGestoras] = useState([]);
@@ -103,6 +90,43 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
         return latest;
     }, [customersData]);
 
+    const aiSelectedClientsDateRange = useMemo(() => {
+        if (sourceType !== 'ai' || selectedClients.length === 0) return null;
+        
+        const latestDates = selectedClients.map(c => {
+            let latestTime = null;
+            (c.orders || []).forEach(order => {
+                if (order.orderDate) {
+                    const time = new Date(order.orderDate).getTime();
+                    if (!isNaN(time)) {
+                        if (latestTime === null || time > latestTime) {
+                            latestTime = time;
+                        }
+                    }
+                }
+            });
+            return latestTime;
+        }).filter(t => t !== null);
+
+        if (latestDates.length === 0) return null;
+
+        const minTime = Math.min(...latestDates);
+        const maxTime = Math.max(...latestDates);
+        
+        const formatDateStr = (timestamp) => {
+            const date = new Date(timestamp);
+            const d = String(date.getUTCDate()).padStart(2, '0');
+            const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const y = date.getUTCFullYear();
+            return `${d}/${m}/${y}`;
+        };
+
+        return {
+            start: formatDateStr(minTime),
+            end: formatDateStr(maxTime)
+        };
+    }, [selectedClients, sourceType]);
+
     const formatDateToYYYYMMDD = (date) => {
         if (!date) return '';
         const year = date.getUTCFullYear();
@@ -111,9 +135,9 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
         return `${year}-${month}-${day}`;
     };
 
-    // Set default dates when dbLatestOrderDate is resolved or filterRecency changes
+    // Set default dates when dbLatestOrderDate is resolved
     useEffect(() => {
-        if (filterRecency === 'date_range' && dbLatestOrderDate) {
+        if (dbLatestOrderDate) {
             const endDateStr = formatDateToYYYYMMDD(dbLatestOrderDate);
             setCustomRecencyDateEnd(endDateStr);
             
@@ -123,7 +147,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
             const startDateStr = formatDateToYYYYMMDD(startDate);
             setCustomRecencyDateStart(startDateStr);
         }
-    }, [filterRecency, dbLatestOrderDate]);
+    }, [dbLatestOrderDate]);
 
     // Auto-populate when preloaded clients are passed from chatbot
     useEffect(() => {
@@ -317,7 +341,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
             const filtered = applyFilters();
             setPreviewCount(filtered.length);
         }
-    }, [sourceType, filterSegment, filterCity, filterRecency, customRecencyMin, customRecencyMax, customRecencyDateStart, customRecencyDateEnd, filterMinPurchaseCount, filterSku, selectedProducts, rawCustomersAnalyzed]);
+    }, [sourceType, filterSegment, filterCity, filterRecency, customRecencyDateStart, customRecencyDateEnd, filterMinPurchaseCount, filterSku, selectedProducts, rawCustomersAnalyzed]);
 
     // Apply database filters
     const applyFilters = () => {
@@ -353,33 +377,52 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
             return latestTime;
         };
 
-        // 3. Filter by inactivity (days since last purchase)
-        if (filterRecency !== 'all') {
-            if (filterRecency === '30') {
-                list = list.filter(c => c.rfm?.recency >= 30 && c.rfm?.recency !== Infinity);
-            } else if (filterRecency === '60') {
-                list = list.filter(c => c.rfm?.recency >= 60 && c.rfm?.recency !== Infinity);
-            } else if (filterRecency === '90') {
-                list = list.filter(c => c.rfm?.recency >= 90 && c.rfm?.recency !== Infinity);
-            } else if (filterRecency === '1-30') {
-                list = list.filter(c => c.rfm?.recency >= 1 && c.rfm?.recency <= 30 && c.rfm?.recency !== Infinity);
-            } else if (filterRecency === '30-60') {
-                list = list.filter(c => c.rfm?.recency >= 30 && c.rfm?.recency <= 60 && c.rfm?.recency !== Infinity);
-            } else if (filterRecency === '60-90') {
-                list = list.filter(c => c.rfm?.recency >= 60 && c.rfm?.recency <= 90 && c.rfm?.recency !== Infinity);
-            } else if (filterRecency === 'custom') {
-                const min = parseInt(customRecencyMin);
-                const max = parseInt(customRecencyMax);
-                list = list.filter(c => {
-                    if (c.rfm?.recency === Infinity || c.rfm?.recency === undefined || c.rfm?.recency === null) return false;
-                    const matchesMin = isNaN(min) || c.rfm.recency >= min;
-                    const matchesMax = isNaN(max) || c.rfm.recency <= max;
-                    return matchesMin && matchesMax;
-                });
-            } else if (filterRecency === 'date_range') {
-                const start = customRecencyDateStart ? new Date(customRecencyDateStart + 'T00:00:00').getTime() : null;
-                const end = customRecencyDateEnd ? new Date(customRecencyDateEnd + 'T23:59:59').getTime() : null;
+        // 3. Filter by inactivity (date range of last purchase)
+        if (filterRecency === 'date_range') {
+            const start = customRecencyDateStart ? new Date(customRecencyDateStart + 'T00:00:00').getTime() : null;
+            const end = customRecencyDateEnd ? new Date(customRecencyDateEnd + 'T23:59:59').getTime() : null;
+            
+            // When SKU + date_range are combined: find clients who bought the SKU
+            // but did NOT purchase it in the date range (lapsed buyers)
+            if (selectedProducts && selectedProducts.length > 0) {
+                const selectedSkus = new Set(selectedProducts.map(p => p.sku.toLowerCase().trim()));
                 
+                const orderMatchesAnySku = (order) => {
+                    return (order.items || []).some(item =>
+                        item.sku && selectedSkus.has(String(item.sku).toLowerCase().trim())
+                    );
+                };
+
+                list = list.filter(c => {
+                    if (!c.orders) return false;
+                    
+                    // Client must have purchased the SKU at some point
+                    const skuOrders = c.orders.filter(order => orderMatchesAnySku(order));
+                    
+                    if (filterMinPurchaseCount) {
+                        if (skuOrders.length < 2) return false;
+                    } else {
+                        if (skuOrders.length < 1) return false;
+                    }
+                    
+                    // Check if they bought the SKU in the date range
+                    const hasSkuOrderInRange = skuOrders.some(order => {
+                        const dateStr = String(order.orderDate).split(' ')[0];
+                        const orderDate = new Date(dateStr).getTime();
+                        if (isNaN(orderDate)) return false;
+                        const matchesStart = start === null || orderDate >= start;
+                        const matchesEnd = end === null || orderDate <= end;
+                        return matchesStart && matchesEnd;
+                    });
+                    
+                    // Keep clients who did NOT buy the SKU in the range
+                    return !hasSkuOrderInRange;
+                });
+                
+                // SKU already handled — skip step 4
+                return list;
+            } else {
+                // No SKU selected: original behavior — filter by last purchase in range
                 list = list.filter(c => {
                     const latestPurchaseTime = getLatestPurchaseTime(c);
                     if (latestPurchaseTime === null) return false;
@@ -391,6 +434,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
         }
 
         // 4. Filter by SKU/Product (multiselect) and purchase count
+        // (Only runs when date_range+SKU combo didn't already handle it above)
         if (selectedProducts && selectedProducts.length > 0) {
             const selectedSkus = new Set(selectedProducts.map(p => p.sku.toLowerCase().trim()));
             list = list.filter(c => {
@@ -499,7 +543,8 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                 body: JSON.stringify({
                     message: aiPrompt,
                     getIntent: true,
-                    history: []
+                    history: [],
+                    latestDbDate: dbLatestOrderDate ? formatDateToYYYYMMDD(dbLatestOrderDate) : undefined
                 })
             });
 
@@ -524,19 +569,69 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
             // Apply intent filters locally
             let list = [...rawCustomersAnalyzed];
 
-            // 1. Date filter (no purchase in range)
+            // Clamp endDate to dbLatestOrderDate so AI can't exceed DB boundaries
             if (intent.dateFilter && intent.dateFilter.startDate && intent.dateFilter.endDate) {
-                const start = new Date(intent.dateFilter.startDate).getTime();
-                const end = new Date(intent.dateFilter.endDate).getTime();
+                if (dbLatestOrderDate) {
+                    const dbMaxStr = formatDateToYYYYMMDD(dbLatestOrderDate);
+                    if (intent.dateFilter.endDate > dbMaxStr) {
+                        intent.dateFilter.endDate = dbMaxStr;
+                    }
+                }
+            }
+
+            // Helper: check if an order matches the SKU
+            const skuTerm = intent.sku ? intent.sku.toLowerCase().trim() : null;
+            const orderMatchesSku = (order) => {
+                if (!skuTerm) return true;
+                return (order.items || []).some(item =>
+                    (item.sku && item.sku.toLowerCase() === skuTerm) ||
+                    (item.description && item.description.toLowerCase().includes(skuTerm))
+                );
+            };
+
+            // 1. Combined SKU + Date filter (when both are present)
+            if (intent.dateFilter && intent.dateFilter.startDate && intent.dateFilter.endDate && skuTerm) {
+                const start = new Date(intent.dateFilter.startDate + 'T00:00:00').getTime();
+                const end = new Date(intent.dateFilter.endDate + 'T23:59:59').getTime();
                 const type = intent.dateFilter.type;
 
                 list = list.filter(c => {
-                    const hasOrderInRange = c.orders.some(order => {
+                    // Client must have purchased this SKU at some point
+                    const hasEverBoughtSku = c.orders.some(order => orderMatchesSku(order));
+                    if (!hasEverBoughtSku) return false;
+
+                    // Check if they have an order of THIS SKU in the date range
+                    const hasSkuOrderInRange = c.orders.some(order => {
+                        if (!orderMatchesSku(order)) return false;
                         const orderDate = new Date(order.orderDate).getTime();
                         return orderDate >= start && orderDate <= end;
                     });
-                    return type === 'no_purchase' ? !hasOrderInRange : hasOrderInRange;
+
+                    return type === 'no_purchase' ? !hasSkuOrderInRange : hasSkuOrderInRange;
                 });
+
+            } else {
+                // 1b. Date filter alone (no SKU)
+                if (intent.dateFilter && intent.dateFilter.startDate && intent.dateFilter.endDate) {
+                    const start = new Date(intent.dateFilter.startDate + 'T00:00:00').getTime();
+                    const end = new Date(intent.dateFilter.endDate + 'T23:59:59').getTime();
+                    const type = intent.dateFilter.type;
+
+                    list = list.filter(c => {
+                        const hasOrderInRange = c.orders.some(order => {
+                            const orderDate = new Date(order.orderDate).getTime();
+                            return orderDate >= start && orderDate <= end;
+                        });
+                        return type === 'no_purchase' ? !hasOrderInRange : hasOrderInRange;
+                    });
+                }
+
+                // 5b. SKU filter alone (no date)
+                if (skuTerm) {
+                    list = list.filter(c =>
+                        c.orders.some(order => orderMatchesSku(order))
+                    );
+                }
             }
 
             // 2. Segment filter
@@ -567,24 +662,27 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                 );
             }
 
-            // 5. SKU filter
-            if (intent.sku) {
-                const skuTerm = intent.sku.toLowerCase().trim();
-                list = list.filter(c => 
-                    c.orders.some(order => 
-                        (order.items || []).some(item => 
-                            (item.sku && item.sku.toLowerCase() === skuTerm) ||
-                            (item.description && item.description.toLowerCase().includes(skuTerm))
-                        )
-                    )
-                );
-            }
-
             if (list.length === 0) {
                 throw new Error('La consulta de IA fue comprendida pero no se encontraron clientes que coincidan.');
             }
 
             setSelectedClients(list);
+
+            // Save the query date range from the intent so we can show it in the UI
+            if (intent.dateFilter && intent.dateFilter.startDate && intent.dateFilter.endDate) {
+                const fmtDate = (dateStr) => {
+                    const d = new Date(dateStr + 'T12:00:00'); // Avoid timezone shift
+                    return d.toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+                };
+                setAiQueryDateRange({
+                    start: fmtDate(intent.dateFilter.startDate),
+                    end: fmtDate(intent.dateFilter.endDate),
+                    type: intent.dateFilter.type
+                });
+            } else {
+                setAiQueryDateRange(null);
+            }
+
             // Dynamic campaign name generation from prompt
             if (!campaignName) {
                 const dateStr = new Date().toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
@@ -685,8 +783,8 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                 filterSegment: sourceType === 'filter' ? filterSegment : null,
                 filterCity: sourceType === 'filter' ? filterCity : null,
                 filterRecency: sourceType === 'filter' ? filterRecency : null,
-                customRecencyMin: sourceType === 'filter' && filterRecency === 'custom' ? customRecencyMin : null,
-                customRecencyMax: sourceType === 'filter' && filterRecency === 'custom' ? customRecencyMax : null,
+                customRecencyMin: null,
+                customRecencyMax: null,
                 customRecencyDateStart: sourceType === 'filter' && filterRecency === 'date_range' ? customRecencyDateStart : null,
                 customRecencyDateEnd: sourceType === 'filter' && filterRecency === 'date_range' ? customRecencyDateEnd : null,
                 filterMinPurchaseCount: sourceType === 'filter' ? filterMinPurchaseCount : false,
@@ -817,6 +915,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                                         setSelectedClients([]); 
                                         setShowAiConfirmation(false);
                                         setAiPendingClients([]);
+                                        setAiQueryDateRange(null);
                                     }}
                                     className={`py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${
                                         sourceType === 'filter'
@@ -833,6 +932,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                                         setSelectedClients([]); 
                                         setShowAiConfirmation(false);
                                         setAiPendingClients([]);
+                                        setAiQueryDateRange(null);
                                     }}
                                     className={`py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${
                                         sourceType === 'ai'
@@ -849,6 +949,7 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                                         setSelectedClients([]); 
                                         setShowAiConfirmation(false);
                                         setAiPendingClients([]);
+                                        setAiQueryDateRange(null);
                                     }}
                                     className={`py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${
                                         sourceType === 'excel'
@@ -1014,68 +1115,34 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                                          )}
                                     </div>
 
-                                    {/* 3. Inactividad (Días sin comprar) */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1.5">
-                                             <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Inactividad (Días sin comprar)</label>
-                                             <GlassSelect 
-                                                 value={filterRecency}
-                                                 onChange={setFilterRecency}
-                                                 options={recencyOptions}
-                                             />
-                                        </div>
-
-                                        {filterRecency === 'custom' && (
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Especificar rango de días sin comprar</label>
-                                                <div className="flex items-center gap-2">
-                                                    <input 
-                                                        type="number"
-                                                        min="0"
-                                                        placeholder="Mín. días"
-                                                        value={customRecencyMin}
-                                                        onChange={(e) => setCustomRecencyMin(e.target.value)}
-                                                        className="w-1/2 text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2.5 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white"
-                                                    />
-                                                    <span className="text-slate-400 dark:text-slate-600 text-xs">a</span>
-                                                    <input 
-                                                        type="number"
-                                                        min="0"
-                                                        placeholder="Máx. días"
-                                                        value={customRecencyMax}
-                                                        onChange={(e) => setCustomRecencyMax(e.target.value)}
-                                                        className="w-1/2 text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-2.5 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {filterRecency === 'date_range' && (
-                                             <div className="space-y-1.5">
-                                                 <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex justify-between items-center">
-                                                     <span>Rango de fechas de última compra</span>
-                                                 </label>
-                                                 <div className="flex items-center gap-2">
-                                                     <GlassDatePicker 
-                                                         value={customRecencyDateStart}
-                                                         onChange={setCustomRecencyDateStart}
-                                                         maxDate={dbLatestOrderDate ? formatDateToYYYYMMDD(dbLatestOrderDate) : undefined}
-                                                         placeholder="Fecha inicial"
-                                                         align="left"
-                                                         position="up"
-                                                     />
-                                                     <span className="text-slate-450 dark:text-slate-500 text-xs font-medium px-1">al</span>
-                                                     <GlassDatePicker 
-                                                         value={customRecencyDateEnd}
-                                                         onChange={setCustomRecencyDateEnd}
-                                                         maxDate={dbLatestOrderDate ? formatDateToYYYYMMDD(dbLatestOrderDate) : undefined}
-                                                         placeholder="Fecha final"
-                                                         align="right"
-                                                         position="up"
-                                                     />
-                                                 </div>
+                                    {/* 3. Inactividad (Rango de fechas de última compra) */}
+                                    <div className="space-y-1.5">
+                                         <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex justify-between items-center">
+                                             <span>Inactividad (Rango de fechas de última compra)</span>
+                                         </label>
+                                         <div className="flex items-center gap-2">
+                                             <div className="w-1/2">
+                                                 <GlassDatePicker 
+                                                     value={customRecencyDateStart}
+                                                     onChange={setCustomRecencyDateStart}
+                                                     maxDate={dbLatestOrderDate ? formatDateToYYYYMMDD(dbLatestOrderDate) : undefined}
+                                                     placeholder="Fecha inicial"
+                                                     align="left"
+                                                     position="up"
+                                                 />
                                              </div>
-                                         )}
+                                             <span className="text-slate-450 dark:text-slate-500 text-xs font-medium px-1">al</span>
+                                             <div className="w-1/2">
+                                                 <GlassDatePicker 
+                                                     value={customRecencyDateEnd}
+                                                     onChange={setCustomRecencyDateEnd}
+                                                     maxDate={dbLatestOrderDate ? formatDateToYYYYMMDD(dbLatestOrderDate) : undefined}
+                                                     placeholder="Fecha final"
+                                                     align="right"
+                                                     position="up"
+                                                 />
+                                             </div>
+                                         </div>
                                     </div>
 
                                     <div className="p-4 bg-blue-50/50 dark:bg-slate-950/40 rounded-xl flex items-center justify-between border border-blue-100/50 dark:border-slate-800/40">
@@ -1146,27 +1213,40 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                                     )}
 
                                     {selectedClients.length > 0 && (
-                                        <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl flex items-center justify-between border border-emerald-100/50 dark:border-emerald-900/20">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                                                    <Check size={18} />
+                                        <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100/50 dark:border-emerald-900/20 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                                                        <Check size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                                                            Clientes identificados por la IA: <span className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">{selectedClients.length}</span>
+                                                        </p>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                            Consulta exitosa. Los clientes coinciden con tu descripción.
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                                                        Clientes identificados por la IA: <span className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">{selectedClients.length}</span>
-                                                    </p>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                        Consulta exitosa. Los clientes coinciden con tu descripción.
-                                                    </p>
-                                                </div>
+                                                <button 
+                                                    onClick={() => setStep(2)}
+                                                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5 font-medium shadow-md shadow-blue-500/10 cursor-pointer"
+                                                >
+                                                    <span>Siguiente paso</span>
+                                                    <ArrowRight size={16} />
+                                                </button>
                                             </div>
-                                            <button 
-                                                onClick={() => setStep(2)}
-                                                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5 font-medium shadow-md shadow-blue-500/10 cursor-pointer"
-                                            >
-                                                <span>Siguiente paso</span>
-                                                <ArrowRight size={16} />
-                                            </button>
+                                            {aiQueryDateRange && (
+                                                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-100 dark:border-blue-900/40">
+                                                    <span className="text-blue-500 dark:text-blue-400 text-xs">📅</span>
+                                                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                                        {aiQueryDateRange.type === 'no_purchase' ? 'Sin compras entre' : 'Clientes del'}{' '}
+                                                        <span className="font-bold">{aiQueryDateRange.start}</span>
+                                                        {' al '}
+                                                        <span className="font-bold">{aiQueryDateRange.end}</span>
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1389,10 +1469,10 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Descripción / Instrucciones para las gestoras (Opcional)</label>
+                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Script de llamada para las gestoras (Opcional)</label>
                                     <textarea 
-                                        rows="2"
-                                        placeholder="Detalles sobre qué producto ofrecer, promociones vigentes, etc..."
+                                        rows="3"
+                                        placeholder="Escribe el script de conversación o mensaje de oferta que utilizarán las gestoras al llamar..."
                                         value={campaignDescription}
                                         onChange={(e) => setCampaignDescription(e.target.value)}
                                         className="w-full text-sm p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white placeholder:text-slate-400 resize-none"

@@ -154,6 +154,9 @@ const CampaignManager = ({ customersData = [], currentUser, preloadedClients = n
                             setSelectedCampaign({ ...selectedCampaign, status });
                         }
                     }}
+                    onScriptChange={(newScript) => {
+                        setSelectedCampaign({ ...selectedCampaign, description: newScript });
+                    }}
                 />
             </div>
         );
@@ -243,7 +246,7 @@ const CampaignManager = ({ customersData = [], currentUser, preloadedClients = n
                             <div
                                 key={camp.id}
                                 onClick={() => setSelectedCampaign(camp)}
-                                className="group cursor-pointer glassmorphism bg-white/60 dark:bg-slate-900/60 hover:bg-white/90 dark:hover:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col justify-between h-[230px]"
+                                className="group cursor-pointer glassmorphism bg-white/60 dark:bg-slate-900/60 hover:bg-white/90 dark:hover:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col justify-between h-[190px]"
                             >
                                 <div>
                                     <div className="flex items-start justify-between gap-2">
@@ -253,12 +256,8 @@ const CampaignManager = ({ customersData = [], currentUser, preloadedClients = n
                                         {getStatusBadge(camp.status)}
                                     </div>
                                     
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 line-clamp-2 min-h-[32px]">
-                                        {camp.description || 'Sin descripción disponible.'}
-                                    </p>
-
                                     {/* Campaign details */}
-                                    <div className="grid grid-cols-2 gap-3 mt-4 text-[11px] text-slate-500 dark:text-slate-400">
+                                    <div className="grid grid-cols-2 gap-3 mt-3 text-[11px] text-slate-500 dark:text-slate-400">
                                         <div className="flex items-center gap-1.5">
                                             <Calendar size={13} className="text-slate-400" />
                                             <span>{new Date(camp.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>

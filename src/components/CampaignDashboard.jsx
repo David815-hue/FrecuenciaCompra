@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
     BarChart3, Users, CheckCircle2, Phone, AlertCircle, Clock, 
-    Download, Search, Filter, MessageSquare, Loader2, Play, Pause, XCircle
+    Download, Search, Filter, MessageSquare, Loader2, Play, Pause, XCircle, X, PhoneOff
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
-import { getCampaignStats, getAssignmentsByCampaign } from '../utils/campaignUtils';
+import { getCampaignStats, getAssignmentsByCampaign, updateCampaignScript } from '../utils/campaignUtils';
 
-const CampaignDashboard = ({ campaign, onStatusChange }) => {
+const CampaignDashboard = ({ campaign, onStatusChange, onScriptChange }) => {
     const [stats, setStats] = useState(null);
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -16,6 +17,39 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [gestoraFilter, setGestoraFilter] = useState('all');
+    
+    // State for viewing full notes history modal
+    const [viewingNotesAssignment, setViewingNotesAssignment] = useState(null);
+
+    // Script editing state
+    const [isEditingScript, setIsEditingScript] = useState(false);
+    const [editedScript, setEditedScript] = useState('');
+    const [isSavingScript, setIsSavingScript] = useState(false);
+
+    const handleStartEditScript = () => {
+        setEditedScript(campaign.description || '');
+        setIsEditingScript(true);
+    };
+
+    const handleSaveScript = async () => {
+        setIsSavingScript(true);
+        try {
+            const res = await updateCampaignScript(campaign.id, editedScript.trim());
+            if (res.success) {
+                if (onScriptChange) {
+                    onScriptChange(editedScript.trim());
+                }
+                setIsEditingScript(false);
+            } else {
+                alert(`Error al guardar el script: ${res.error}`);
+            }
+        } catch (err) {
+            console.error('Failed to save script:', err);
+            alert('Error al guardar el script.');
+        } finally {
+            setIsSavingScript(false);
+        }
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -65,13 +99,16 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
                 unreachable: 'Inalcanzable'
             };
 
+            const isClosed = (a.attempts || 0) >= 3 && ['no_answer', 'callback'].includes(a.status);
+            const displayStatus = isClosed ? 'Cerrada' : (statusMap[a.status] || a.status);
+
             return {
                 'Nombre Cliente': a.client_name,
                 'Teléfono': a.client_phone || 'N/A',
                 'Ciudad': a.client_city || 'Desconocida',
                 'Segmento RFM': a.client_segment || 'N/A',
                 'Gestora Asignada': a.gestora_name,
-                'Estado Llamada': statusMap[a.status] || a.status,
+                'Estado Llamada': displayStatus,
                 'Intentos': a.attempts || 0,
                 'Notas/Bitácora': a.notes || 'Sin notas',
                 'Última Actualización': a.last_updated ? new Date(a.last_updated).toLocaleString('es-ES') : ''
@@ -108,7 +145,10 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
         return matchesSearch && matchesStatus && matchesGestora;
     });
 
-    const getStatusText = (status) => {
+    const getStatusText = (status, attempts = 0) => {
+        if (attempts >= 3 && ['no_answer', 'callback'].includes(status)) {
+            return 'Cerrada';
+        }
         const map = {
             pending: 'Pendiente',
             no_answer: 'No contestó',
@@ -120,7 +160,10 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
         return map[status] || status;
     };
 
-    const getStatusStyle = (status) => {
+    const getStatusStyle = (status, attempts = 0) => {
+        if (attempts >= 3 && ['no_answer', 'callback'].includes(status)) {
+            return 'bg-slate-200 text-slate-800 dark:bg-slate-850 dark:text-slate-350 border border-slate-300 dark:border-slate-700';
+        }
         switch (status) {
             case 'pending':
                 return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
@@ -180,7 +223,51 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
                                 {campaign.status === 'active' ? 'Activa' : campaign.status === 'paused' ? 'Pausada' : 'Cerrada'}
                             </span>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-2xl">{campaign.description || 'Sin descripción'}</p>
+                        <div className="mt-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200/50 dark:border-slate-800/60 p-3.5 rounded-xl text-xs max-w-2xl relative group/script">
+                            <div className="flex justify-between items-center mb-1 gap-2">
+                                <span className="font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider text-[9px]">Script de la Campaña:</span>
+                                {!isEditingScript && (
+                                    <button 
+                                        onClick={handleStartEditScript}
+                                        className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold transition-colors flex items-center gap-1"
+                                    >
+                                        Editar Script
+                                    </button>
+                                )}
+                            </div>
+                            
+                            {isEditingScript ? (
+                                <div className="space-y-2 mt-1.5">
+                                    <textarea
+                                        rows="3"
+                                        value={editedScript}
+                                        onChange={(e) => setEditedScript(e.target.value)}
+                                        placeholder="Escribe el script de llamada para esta campaña..."
+                                        className="w-full text-xs p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-white placeholder:text-slate-500 resize-none"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            onClick={() => setIsEditingScript(false)}
+                                            className="px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                                            disabled={isSavingScript}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={handleSaveScript}
+                                            className="px-2.5 py-1 text-[10px] font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-md flex items-center gap-1 transition-all disabled:opacity-50"
+                                            disabled={isSavingScript}
+                                        >
+                                            {isSavingScript ? 'Guardando...' : 'Guardar'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-slate-700 dark:text-slate-350 italic whitespace-pre-wrap mt-0.5">
+                                    {campaign.description ? `"${campaign.description}"` : 'Sin script de llamada configurado.'}
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -241,10 +328,10 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {[
                     { label: 'Asignados', val: total, color: 'text-slate-800 dark:text-white', icon: Users, bg: 'bg-slate-100 dark:bg-slate-900/50' },
-                    { label: 'Pendientes', val: pending, color: 'text-slate-500', icon: Clock, bg: 'bg-slate-50 dark:bg-slate-900/20' },
+                    { label: 'Pendientes', val: pending, color: 'text-slate-500', icon: Clock, bg: 'bg-slate-100 dark:bg-slate-900/20' },
                     { label: 'Ventas', val: sales, color: 'text-emerald-600 dark:text-emerald-400', icon: CheckCircle2, bg: 'bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-500/10' },
                     { label: 'Eficacia Venta', val: `${effectiveness}%`, color: 'text-blue-600 dark:text-blue-400', icon: BarChart3, bg: 'bg-blue-50/30 dark:bg-blue-900/10' },
-                    { label: 'Llamar después', val: stats.callback || 0, color: 'text-blue-500', icon: Phone, bg: 'bg-slate-100 dark:bg-slate-900/20' },
+                    { label: 'Cerradas (3 Intentos)', val: stats.closed || 0, color: 'text-rose-600 dark:text-rose-400', icon: PhoneOff, bg: 'bg-slate-100 dark:bg-slate-900/20' },
                     { label: 'Intentos Totales', val: stats.total_attempts || 0, color: 'text-purple-600 dark:text-purple-400', icon: Phone, bg: 'bg-slate-100 dark:bg-slate-900/20' }
                 ].map((s, idx) => (
                     <div key={idx} className={`p-4 rounded-xl flex flex-col justify-between ${s.bg}`}>
@@ -310,6 +397,7 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
                                 { label: 'No contestó', val: stats.no_answer, color: 'bg-amber-500' },
                                 { label: 'No interesado', val: stats.not_interested, color: 'bg-rose-500' },
                                 { label: 'Llamar después (Callback)', val: stats.callback, color: 'bg-blue-500' },
+                                { label: 'Cerradas (3 Intentos)', val: stats.closed || 0, color: 'bg-slate-500' },
                                 { label: 'Inalcanzable', val: stats.unreachable, color: 'bg-purple-500' }
                             ].map((item, idx) => {
                                 const percent = total > 0 ? ((item.val || 0) / total * 100).toFixed(1) : 0;
@@ -425,18 +513,22 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
                                     <td className="py-3 px-2 text-slate-700 dark:text-slate-300 font-medium">{a.gestora_name}</td>
                                     <td className="py-3 px-2 text-center font-bold">{a.attempts || 0}</td>
                                     <td className="py-3 px-2">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${getStatusStyle(a.status)}`}>
-                                            {getStatusText(a.status)}
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${getStatusStyle(a.status, a.attempts)}`}>
+                                            {getStatusText(a.status, a.attempts)}
                                         </span>
                                     </td>
-                                    <td className="py-3 px-2 max-w-[200px] truncate" title={a.notes}>
+                                    <td 
+                                        className="py-3 px-2 max-w-[200px] truncate cursor-pointer hover:bg-slate-100/80 dark:hover:bg-slate-800/40 transition-colors" 
+                                        title="Haga clic para ver el historial completo de notas"
+                                        onClick={() => setViewingNotesAssignment(a)}
+                                    >
                                         {a.notes ? (
-                                            <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                                            <span className="flex items-center gap-1 text-slate-550 dark:text-slate-350 font-medium">
                                                 <MessageSquare size={12} className="flex-shrink-0 text-blue-500" />
                                                 <span className="truncate">{a.notes.split('\n').pop()}</span>
                                             </span>
                                         ) : (
-                                            <span className="text-slate-400 italic">Ninguna</span>
+                                            <span className="text-slate-400 italic font-normal">Ninguna</span>
                                         )}
                                     </td>
                                 </tr>
@@ -452,6 +544,88 @@ const CampaignDashboard = ({ campaign, onStatusChange }) => {
                     </table>
                 </div>
             </div>
+
+            {/* Notes History Modal */}
+            <AnimatePresence>
+                {viewingNotesAssignment && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="w-full max-w-md overflow-hidden glassmorphism bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-5 space-y-4"
+                        >
+                            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/60">
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <MessageSquare size={16} className="text-blue-500" />
+                                    <span>Historial de Notas</span>
+                                </h3>
+                                <button 
+                                    onClick={() => setViewingNotesAssignment(null)}
+                                    className="text-slate-400 hover:text-slate-655 transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-2.5">
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cliente</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingNotesAssignment.client_name}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Teléfono</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingNotesAssignment.client_phone || 'N/A'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gestora</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingNotesAssignment.gestora_name}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Intentos</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingNotesAssignment.attempts || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-950/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800/40 max-h-60 overflow-y-auto">
+                                {viewingNotesAssignment.notes ? (
+                                    <div className="space-y-3">
+                                        {viewingNotesAssignment.notes.split('\n').map((note, index) => {
+                                            const match = note.match(/^\[(.*?)\]\s*(.*)$/);
+                                            if (match) {
+                                                return (
+                                                    <div key={index} className="text-xs border-l-2 border-blue-500/50 pl-2.5 py-0.5">
+                                                        <span className="text-[10px] font-semibold text-slate-400 block mb-0.5">{match[1]}</span>
+                                                        <p className="text-slate-700 dark:text-slate-350 leading-relaxed whitespace-pre-wrap">{match[2]}</p>
+                                                    </div>
+                                                );
+                                            }
+                                            return (
+                                                <div key={index} className="text-xs border-l-2 border-slate-300 dark:border-slate-700 pl-2.5 py-0.5">
+                                                    <p className="text-slate-700 dark:text-slate-350 leading-relaxed whitespace-pre-wrap">{note}</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-400 italic text-center py-4">No hay notas registradas para este cliente.</p>
+                                )}
+                            </div>
+
+                            <div className="flex justify-end pt-1">
+                                <button 
+                                    onClick={() => setViewingNotesAssignment(null)}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/10"
+                                >
+                                    Cerrar
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

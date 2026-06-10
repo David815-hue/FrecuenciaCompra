@@ -425,9 +425,42 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
             const data = await response.json();
 
             if (data.success) {
+                let finalReply = data.reply;
+                if (exportDataList.length > 0) {
+                    const latestDates = exportDataList.map(c => {
+                        let latestTime = null;
+                        (c.orders || []).forEach(order => {
+                            if (order.orderDate) {
+                                const time = new Date(order.orderDate).getTime();
+                                if (!isNaN(time)) {
+                                    if (latestTime === null || time > latestTime) {
+                                        latestTime = time;
+                                    }
+                                }
+                            }
+                        });
+                        return latestTime;
+                    }).filter(t => t !== null);
+
+                    if (latestDates.length > 0) {
+                        const minTime = Math.min(...latestDates);
+                        const maxTime = Math.max(...latestDates);
+                        
+                        const formatDateStr = (timestamp) => {
+                            const date = new Date(timestamp);
+                            const d = String(date.getUTCDate()).padStart(2, '0');
+                            const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+                            const y = date.getUTCFullYear();
+                            return `${d}/${m}/${y}`;
+                        };
+                        
+                        finalReply += `\n\n📅 **Rango de fecha de última compra:** del **${formatDateStr(minTime)}** al **${formatDateStr(maxDate)}**`;
+                    }
+                }
+
                 setMessages(prev => [...prev, { 
                     role: 'assistant', 
-                    text: data.reply,
+                    text: finalReply,
                     exportData: exportDataList.length > 0 ? exportDataList : undefined
                 }]);
             } else {

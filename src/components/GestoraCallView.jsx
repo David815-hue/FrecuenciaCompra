@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Phone, Check, X, Clock, MessageSquare, AlertTriangle, Search, 
@@ -19,9 +19,21 @@ const GestoraCallView = ({ currentUser }) => {
     const [noteText, setNoteText] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
     
-    // Call statuses that are considered "pending" vs "completed"
-    const PENDING_STATUSES = ['pending', 'no_answer', 'callback'];
-    const COMPLETED_STATUSES = ['sale', 'not_interested', 'unreachable'];
+    // Call scripts display state
+    const [showScripts, setShowScripts] = useState(true);
+    const [activeScriptCampaign, setActiveScriptCampaign] = useState(null);
+    
+
+    // Extract unique active campaigns
+    const activeCampaigns = useMemo(() => {
+        const campaignMap = new Map();
+        assignments.forEach(a => {
+            if (a.campaigns && a.campaigns.id) {
+                campaignMap.set(a.campaigns.id, a.campaigns);
+            }
+        });
+        return Array.from(campaignMap.values());
+    }, [assignments]);
 
     const loadAssignments = async () => {
         if (!currentUser?.uid) return;
@@ -57,7 +69,7 @@ const GestoraCallView = ({ currentUser }) => {
             setAssignments(prev => prev.map(a => {
                 if (a.id === assignmentId) {
                     let newAttempts = a.attempts || 0;
-                    if (incrementAttempts || ['no_answer', 'callback', 'unreachable'].includes(status)) {
+                    if (incrementAttempts || ['no_answer', 'callback'].includes(status)) {
                         newAttempts += 1;
                     }
                     return {
@@ -135,13 +147,16 @@ const GestoraCallView = ({ currentUser }) => {
     // Filtered and sorted assignments list
     const filteredAssignments = assignments
         .filter(a => {
+            const attempts = a.attempts || 0;
             // Tab filter
             if (filterTab === 'uncalled') {
-                return a.status === 'pending';
+                return a.status === 'pending' && attempts < 3;
             } else if (filterTab === 'retries') {
-                return a.status === 'no_answer' || a.status === 'callback';
+                return (a.status === 'no_answer' || a.status === 'callback') && attempts < 3;
             } else if (filterTab === 'completed') {
                 return a.status === 'sale' || a.status === 'not_interested';
+            } else if (filterTab === 'closed') {
+                return (a.status === 'no_answer' || a.status === 'callback') && attempts >= 3;
             } else if (filterTab === 'bad_numbers') {
                 return a.status === 'unreachable';
             }
@@ -172,21 +187,46 @@ const GestoraCallView = ({ currentUser }) => {
     // Counts for stats banner
     const stats = {
         total: assignments.length,
-        pending: assignments.filter(a => PENDING_STATUSES.includes(a.status)).length,
-        completed: assignments.filter(a => COMPLETED_STATUSES.includes(a.status)).length,
+        pending: assignments.filter(a => ['pending', 'no_answer', 'callback'].includes(a.status) && (a.attempts || 0) < 3).length,
+        completed: assignments.filter(a => ['sale', 'not_interested'].includes(a.status)).length,
+        closed: assignments.filter(a => ['no_answer', 'callback'].includes(a.status) && (a.attempts || 0) >= 3).length,
         sales: assignments.filter(a => a.status === 'sale').length
     };
 
     // Counts for tabs
     const counts = {
         total: assignments.length,
-        uncalled: assignments.filter(a => a.status === 'pending').length,
-        retries: assignments.filter(a => a.status === 'no_answer' || a.status === 'callback').length,
+        uncalled: assignments.filter(a => a.status === 'pending' && (a.attempts || 0) < 3).length,
+        retries: assignments.filter(a => (a.status === 'no_answer' || a.status === 'callback') && (a.attempts || 0) < 3).length,
         completed: assignments.filter(a => a.status === 'sale' || a.status === 'not_interested').length,
+        closed: assignments.filter(a => (a.status === 'no_answer' || a.status === 'callback') && (a.attempts || 0) >= 3).length,
         bad_numbers: assignments.filter(a => a.status === 'unreachable').length
     };
 
-    const getStatusStyle = (status) => {
+    // Group filtered assignments by campaign for segmented display
+    const assignmentsByCampaign = useMemo(() => {
+        const groups = {};
+        filteredAssignments.forEach(a => {
+            const campaignId = a.campaigns?.id || 'no_campaign';
+            const campaignName = a.campaigns?.name || 'Sin Campaña';
+            const campaignDesc = a.campaigns?.description || '';
+            if (!groups[campaignId]) {
+                groups[campaignId] = {
+                    id: campaignId,
+                    name: campaignName,
+                    description: campaignDesc,
+                    assignments: []
+                };
+            }
+            groups[campaignId].assignments.push(a);
+        });
+        return Object.values(groups);
+    }, [filteredAssignments]);
+
+    const getStatusStyle = (status, attempts = 0) => {
+        if (attempts >= 3 && ['no_answer', 'callback'].includes(status)) {
+            return 'bg-slate-200 text-slate-800 dark:bg-slate-800/80 dark:text-slate-350 border border-slate-300 dark:border-slate-700';
+        }
         switch (status) {
             case 'pending':
                 return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
@@ -205,7 +245,10 @@ const GestoraCallView = ({ currentUser }) => {
         }
     };
 
-    const getStatusText = (status) => {
+    const getStatusText = (status, attempts = 0) => {
+        if (attempts >= 3 && ['no_answer', 'callback'].includes(status)) {
+            return 'Cerrada';
+        }
         const map = {
             pending: 'Pendiente',
             no_answer: 'No contestó',
@@ -292,11 +335,12 @@ const GestoraCallView = ({ currentUser }) => {
             </div>
 
             {/* Stats Cards Banner */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {[
                     { label: 'Pendientes por Llamar', val: stats.pending, color: 'text-amber-600 dark:text-amber-400', icon: Clock, bg: 'bg-amber-500/5 dark:bg-amber-500/10' },
                     { label: 'Ventas Concretadas', val: stats.sales, color: 'text-emerald-600 dark:text-emerald-400', icon: Award, bg: 'bg-emerald-500/5 dark:bg-emerald-500/10' },
-                    { label: 'Completadas', val: stats.completed, color: 'text-slate-800 dark:text-white', icon: Check, bg: 'bg-slate-100 dark:bg-slate-900/50' },
+                    { label: 'Completadas', val: stats.completed, color: 'text-indigo-600 dark:text-indigo-400', icon: Check, bg: 'bg-indigo-500/5 dark:bg-indigo-500/10' },
+                    { label: 'Cerradas (3 Intentos)', val: stats.closed, color: 'text-rose-600 dark:text-rose-400', icon: PhoneOff, bg: 'bg-rose-500/5 dark:bg-rose-500/10' },
                     { label: 'Total Asignadas', val: stats.total, color: 'text-blue-600 dark:text-blue-400', icon: Phone, bg: 'bg-blue-500/5 dark:bg-blue-500/10' }
                 ].map((s, idx) => (
                     <div key={idx} className={`p-4 rounded-xl flex items-center justify-between ${s.bg} border border-slate-100 dark:border-slate-800/40`}>
@@ -309,6 +353,8 @@ const GestoraCallView = ({ currentUser }) => {
                 ))}
             </div>
 
+
+
             {/* Filter and search bar */}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-4">
                 {/* Tabs */}
@@ -317,6 +363,7 @@ const GestoraCallView = ({ currentUser }) => {
                         { id: 'uncalled', label: `Por Llamar (${counts.uncalled})` },
                         { id: 'retries', label: `Reintentos (${counts.retries})` },
                         { id: 'completed', label: `Completadas (${counts.completed})` },
+                        { id: 'closed', label: `Cerradas (${counts.closed})` },
                         { id: 'bad_numbers', label: `Números Malos (${counts.bad_numbers})` },
                         { id: 'all', label: `Todas (${counts.total})` }
                     ].map(tab => (
@@ -381,130 +428,165 @@ const GestoraCallView = ({ currentUser }) => {
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {filteredAssignments.map(a => (
-                        <div
-                            key={a.id}
-                            className={`glassmorphism bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-md hover:shadow-lg transition-all duration-200 flex flex-col justify-between min-h-[200px] relative overflow-hidden`}
-                        >
-                            {/* Campaign tag */}
-                            <div className="absolute top-0 right-0 left-0 bg-slate-50 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 px-4 py-1.5 flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-slate-400 truncate max-w-[70%]">
-                                    CAMPAÑA: {a.campaigns?.name}
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${getStatusStyle(a.status)}`}>
-                                    {getStatusText(a.status)}
-                                </span>
+                <div className="space-y-10">
+                    {assignmentsByCampaign.map(group => (
+                        <div key={group.id} className="space-y-4">
+                            {/* Campaign Header & Script */}
+                            <div className="border-b border-slate-200 dark:border-slate-800/80 pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-4">
+                                <h2 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <span className="w-1 h-5 bg-blue-600 dark:bg-blue-500 rounded-full" />
+                                    <span>CAMPAÑA: <span className="text-blue-600 dark:text-blue-400 uppercase tracking-wide font-extrabold">{group.name}</span></span>
+                                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-2 py-0.5 rounded-full normal-case font-medium">
+                                        {group.assignments.length} {group.assignments.length === 1 ? 'cliente' : 'clientes'}
+                                    </span>
+                                </h2>
                             </div>
 
-                            <div className="pt-6">
-                                <div className="flex justify-between items-start mt-1">
-                                    <div>
-                                        <h3 className="font-bold text-slate-800 dark:text-white text-base">
-                                            {a.client_name}
-                                        </h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex flex-col gap-0.5 uppercase">
-                                            <span className="flex items-center gap-1.5">
-                                                <span>{a.client_city || 'Ciudad Desconocida'}</span>
-                                                <span>•</span>
-                                                <span className="font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[9px]">
-                                                    DNI: {a.client_extra?.identity || 'S/D'}
-                                                </span>
-                                            </span>
-                                            {getFormattedLatestOrderDate(a) && (
-                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium normal-case mt-0.5">
-                                                    Últ. compra: {getFormattedLatestOrderDate(a)}
-                                                </span>
-                                            )}
-                                        </p>
+                            {/* Campaign Script */}
+                            {group.description?.trim() ? (
+                                <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 dark:from-blue-500/5 dark:to-indigo-500/5 border border-blue-200/50 dark:border-blue-800/20 rounded-2xl p-4 shadow-[0_2px_8px_rgba(59,130,246,0.02)]">
+                                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-1.5">
+                                        <MessageSquare size={14} className="animate-pulse" />
+                                        <span className="text-[10px] font-bold uppercase tracking-wider">Script de llamada recomendado:</span>
                                     </div>
-                                    
-                                    <div className="text-right">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Intentos</span>
-                                        <span className={`text-base font-bold ${a.attempts > 2 ? 'text-amber-500' : 'text-slate-700 dark:text-slate-300'}`}>
-                                            {a.attempts || 0}
-                                        </span>
-                                    </div>
+                                    <p className="text-xs md:text-sm text-slate-700 dark:text-slate-350 whitespace-pre-wrap leading-relaxed italic border-l-2 border-blue-500/50 pl-3">
+                                        "{group.description}"
+                                    </p>
                                 </div>
+                            ) : (
+                                <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-200/40 dark:border-slate-800/20 rounded-2xl p-3 text-xs text-slate-400 dark:text-slate-500 italic pl-4">
+                                    Sin script de llamada configurado por el administrador para esta campaña.
+                                </div>
+                            )}
 
-                                {/* Phone Click-to-Call */}
-                                {a.client_phone && (
-                                    <a 
-                                        href={getDialUrl(a.client_phone)}
-                                        className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-semibold transition-colors w-fit"
+                            {/* Client Cards Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {group.assignments.map(a => (
+                                    <div
+                                        key={a.id}
+                                        className="glassmorphism bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-md hover:shadow-lg transition-all duration-200 flex flex-col justify-between min-h-[200px] relative overflow-hidden"
                                     >
-                                        <Phone size={13} />
-                                        <span>Llamar: <span className="font-bold">{a.client_phone}</span></span>
-                                    </a>
-                                )}
+                                        {/* Campaign tag */}
+                                        <div className="absolute top-0 right-0 left-0 bg-slate-50 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 px-4 py-1.5 flex justify-between items-center">
+                                            <span className="text-[10px] font-bold text-slate-400 truncate max-w-[70%]">
+                                                CAMPAÑA: {a.campaigns?.name}
+                                            </span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${getStatusStyle(a.status, a.attempts)}`}>
+                                                {getStatusText(a.status, a.attempts)}
+                                            </span>
+                                        </div>
 
-                                {/* Notes/Bitacora Section */}
-                                <div className="mt-3 p-3 bg-slate-50/50 dark:bg-slate-950/10 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                                    <div className="flex justify-between items-center text-slate-400 mb-1">
-                                        <span className="font-semibold text-[10px] uppercase">Historial de Notas</span>
-                                        <button 
-                                            onClick={() => handleOpenNoteModal(a.id, a.notes)}
-                                            className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold"
-                                        >
-                                            + Agregar Nota
-                                        </button>
+                                        <div className="pt-6">
+                                            <div className="flex justify-between items-start mt-1">
+                                                <div>
+                                                    <h3 className="font-bold text-slate-800 dark:text-white text-base">
+                                                        {a.client_name}
+                                                    </h3>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex flex-col gap-0.5 uppercase">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <span>{a.client_city || 'Ciudad Desconocida'}</span>
+                                                            <span>•</span>
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[9px]">
+                                                                DNI: {a.client_extra?.identity || 'S/D'}
+                                                            </span>
+                                                        </span>
+                                                        {getFormattedLatestOrderDate(a) && (
+                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium normal-case mt-0.5">
+                                                                Últ. compra: {getFormattedLatestOrderDate(a)}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                
+                                                <div className="text-right">
+                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Intentos</span>
+                                                    <span className={`text-base font-bold ${a.attempts > 2 ? 'text-amber-500' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                        {a.attempts || 0}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Phone Click-to-Call */}
+                                            {a.client_phone && (
+                                                <a 
+                                                    href={getDialUrl(a.client_phone)}
+                                                    className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-semibold transition-colors w-fit"
+                                                >
+                                                    <Phone size={13} />
+                                                    <span>Llamar: <span className="font-bold">{a.client_phone}</span></span>
+                                                </a>
+                                            )}
+
+                                            {/* Notes/Bitacora Section */}
+                                            <div className="mt-3 p-3 bg-slate-50/50 dark:bg-slate-950/10 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                                                <div className="flex justify-between items-center text-slate-400 mb-1">
+                                                    <span className="font-semibold text-[10px] uppercase">Historial de Notas</span>
+                                                    <button 
+                                                        onClick={() => handleOpenNoteModal(a.id, a.notes)}
+                                                        className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold"
+                                                    >
+                                                        + Agregar Nota
+                                                    </button>
+                                                </div>
+                                                {a.notes ? (
+                                                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line max-h-[60px] overflow-y-auto pr-1 leading-relaxed text-[11px]">
+                                                        {a.notes}
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-slate-400 italic text-[10px]">No hay notas registradas para este cliente.</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Call Outcome Actions */}
+                                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 grid grid-cols-5 gap-2">
+                                            <button
+                                                onClick={() => handleStatusUpdate(a.id, 'no_answer', '', true)}
+                                                className="p-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/10 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors"
+                                                title="No contestó (Registra llamada e incrementa intentos)"
+                                            >
+                                                <PhoneOff size={14} />
+                                                <span className="text-[9px] font-semibold">No cont.</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleStatusUpdate(a.id, 'callback', '', true)}
+                                                className="p-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/10 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors"
+                                                title="Llamar después (Incrementa intentos)"
+                                            >
+                                                <Clock size={14} />
+                                                <span className="text-[9px] font-semibold">Re-llamar</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleStatusUpdate(a.id, 'unreachable', '', false)}
+                                                className="p-2 bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/10 dark:hover:bg-violet-900/20 text-violet-600 dark:text-violet-400 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors"
+                                                title="Teléfono inalcanzable/malo"
+                                            >
+                                                <AlertTriangle size={14} />
+                                                <span className="text-[9px] font-semibold">Malo</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleStatusUpdate(a.id, 'not_interested', '')}
+                                                className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/10 dark:hover:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors font-semibold"
+                                                title="No interesado (Cierra el caso)"
+                                            >
+                                                <X size={14} />
+                                                <span className="text-[9px] font-semibold">Rechazo</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleStatusUpdate(a.id, 'sale', '')}
+                                                className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors font-bold shadow-md shadow-emerald-500/10"
+                                                title="¡Venta Concretada! (Cierra el caso)"
+                                            >
+                                                <Check size={14} />
+                                                <span className="text-[9px] font-bold">¡Venta!</span>
+                                            </button>
+                                        </div>
                                     </div>
-                                    {a.notes ? (
-                                        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line max-h-[60px] overflow-y-auto pr-1 leading-relaxed text-[11px]">
-                                            {a.notes}
-                                        </p>
-                                    ) : (
-                                        <p className="text-slate-400 italic text-[10px]">No hay notas registradas para este cliente.</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Call Outcome Actions */}
-                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 grid grid-cols-5 gap-2">
-                                <button
-                                    onClick={() => handleStatusUpdate(a.id, 'no_answer', '', true)}
-                                    className="p-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/10 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors"
-                                    title="No contestó (Registra llamada e incrementa intentos)"
-                                >
-                                    <PhoneOff size={14} />
-                                    <span className="text-[9px] font-semibold">No cont.</span>
-                                </button>
-
-                                <button
-                                    onClick={() => handleStatusUpdate(a.id, 'callback', '', true)}
-                                    className="p-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/10 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors"
-                                    title="Llamar después (Incrementa intentos)"
-                                >
-                                    <Clock size={14} />
-                                    <span className="text-[9px] font-semibold">Re-llamar</span>
-                                </button>
-
-                                <button
-                                    onClick={() => handleStatusUpdate(a.id, 'unreachable', '', true)}
-                                    className="p-2 bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/10 dark:hover:bg-violet-900/20 text-violet-600 dark:text-violet-400 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors"
-                                    title="Teléfono inalcanzable/malo (Incrementa intentos)"
-                                >
-                                    <AlertTriangle size={14} />
-                                    <span className="text-[9px] font-semibold">Malo</span>
-                                </button>
-
-                                <button
-                                    onClick={() => handleStatusUpdate(a.id, 'not_interested', '')}
-                                    className="p-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/10 dark:hover:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors font-semibold"
-                                    title="No interesado (Cierra el caso)"
-                                >
-                                    <X size={14} />
-                                    <span className="text-[9px] font-semibold">Rechazo</span>
-                                </button>
-
-                                <button
-                                    onClick={() => handleStatusUpdate(a.id, 'sale', '')}
-                                    className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-colors font-bold shadow-md shadow-emerald-500/10"
-                                    title="¡Venta Concretada! (Cierra el caso)"
-                                >
-                                    <Check size={14} />
-                                    <span className="text-[9px] font-bold">¡Venta!</span>
-                                </button>
+                                ))}
                             </div>
                         </div>
                     ))}
@@ -567,6 +649,53 @@ const GestoraCallView = ({ currentUser }) => {
                                     ) : (
                                         <span>Guardar Nota</span>
                                     )}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Call Script Details Modal */}
+            <AnimatePresence>
+                {activeScriptCampaign && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="w-full max-w-md overflow-hidden glassmorphism bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-5 space-y-4"
+                        >
+                            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-850">
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <MessageSquare size={16} className="text-blue-500" />
+                                    <span>Script de Llamada</span>
+                                </h3>
+                                <button 
+                                    onClick={() => setActiveScriptCampaign(null)}
+                                    className="text-slate-400 hover:text-slate-655"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Campaña</span>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{activeScriptCampaign.name}</p>
+                            </div>
+
+                            <div className="bg-blue-50/50 dark:bg-slate-950/40 p-4 rounded-xl border border-blue-100/50 dark:border-slate-800/20 max-h-60 overflow-y-auto">
+                                <p className="text-sm text-slate-700 dark:text-slate-350 whitespace-pre-wrap leading-relaxed italic border-l-2 border-blue-500/50 pl-3">
+                                    "{activeScriptCampaign.description}"
+                                </p>
+                            </div>
+
+                            <div className="flex justify-end pt-1">
+                                <button 
+                                    onClick={() => setActiveScriptCampaign(null)}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/10"
+                                >
+                                    Cerrar
                                 </button>
                             </div>
                         </motion.div>

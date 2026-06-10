@@ -236,11 +236,12 @@ async function fetchWithRetry(url, options, maxRetries = 1) {
     }
 }
 
-// â”€â”€ Prompt builders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function buildIntentPrompt() {
-    const now = new Date();
-    const todayReadable = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const todayISO = now.toISOString().split('T')[0];
+// —— Prompt builders ———————————————————————————————————————
+function buildIntentPrompt(latestDbDate) {
+    // Use the latest DB date as reference if provided, otherwise fall back to today
+    const referenceDate = latestDbDate ? new Date(latestDbDate + 'T12:00:00') : new Date();
+    const todayReadable = referenceDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const todayISO = latestDbDate || referenceDate.toISOString().split('T')[0];
 
     return `You are a database query translation assistant for Punto Farma.
 Analyze the user's natural language question about customer RFM segments, purchases, and city locations, and extract the filtering parameters.
@@ -254,7 +255,7 @@ Available segments (s):
 - NRec: Nuevos Compradores Recientes
 - NIna: Nuevos Compradores Inactivos
 - Oca: Compradores Ocasionales
-- Cri: Can't Lose Them (CrÃ­ticos)
+- Cri: Can't Lose Them (Críticos)
 - Hib: Hibernating (Inactivos)
 - Los: Lost (Perdidos)
 
@@ -270,8 +271,8 @@ Fields to extract:
 - generalStats: boolean (true ONLY for totals, counts, averages, or summary statistics. false for customer lists, details, or phone numbers.)
 - statsType: string (only when generalStats is true: "count" for simple counts, "breakdown_segment" for per-segment, "breakdown_city" for per-city, "full_summary" for everything. null when generalStats is false.)
 - dateFilter: object or null. Extract date ranges when mentioned.
-  * startDate: "YYYY-MM-DD" or null. IMPORTANT: Today is ${todayReadable} (${todayISO}).
-  * endDate: "YYYY-MM-DD" or null.
+  * startDate: "YYYY-MM-DD" or null. IMPORTANT: The latest available data in the database is from ${todayReadable} (${todayISO}). Use this date as "today" for all relative calculations (e.g. "últimos 30 días" means from ${todayISO} minus 30 days to ${todayISO}). NEVER use a date after ${todayISO} as endDate.
+  * endDate: "YYYY-MM-DD" or null. Must NEVER exceed ${todayISO}.
   * type: "no_purchase" (clients who did NOT buy) or "purchase" (clients who DID buy).
 `;
 }
@@ -341,7 +342,7 @@ app.post('/api/chat', async (req, res) => {
             console.log(`ðŸ¤– [Local] Extrayendo intenciÃ³n para: "${message}"`);
 
             const intentMessages = [
-                { role: 'system', content: buildIntentPrompt() },
+                { role: 'system', content: buildIntentPrompt(req.body.latestDbDate) },
                 ...historyMessages,
                 { role: 'user', content: message }
             ];

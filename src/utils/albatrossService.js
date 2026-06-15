@@ -321,7 +321,7 @@ export const runAutomaticSync = async ({ startDate, endDate, isIncremental, onPr
             const customerKey = email || phone || `unknown_${customerName}`;
 
             // Parse Date
-            const orderDateStr = row.creation_date || ''; // YYYY-MM-DD
+            const orderDateStr = row.created_at || (row.creation_date && row.creation_hour ? `${row.creation_date} ${row.creation_hour}` : row.creation_date) || '';
             const orderDate = new Date(orderDateStr);
 
             // Determine if order date is in January or February 2026

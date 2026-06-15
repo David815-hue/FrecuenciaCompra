@@ -250,6 +250,33 @@ export const updateCustomer = async (customerId, data) => {
 };
 
 /**
+ * Safely parses database date strings (like "YYYY-MM-DD" or "YYYY-MM-DD HH:mm:ss")
+ * into local Date objects, avoiding any timezone shift issues.
+ */
+export const parseDatabaseDate = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+
+    const str = String(dateStr).trim();
+    const justDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (justDateRegex.test(str)) {
+        const [year, month, day] = str.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    }
+
+    const normalized = str.replace(' ', 'T');
+    const d = new Date(normalized);
+    if (!isNaN(d.getTime())) {
+        return d;
+    }
+    const fallback = new Date(str);
+    if (!isNaN(fallback.getTime())) {
+        return fallback;
+    }
+    return null;
+};
+
+/**
  * Get the latest order date from Supabase
  */
 export const getLatestOrderDate = async () => {
@@ -258,23 +285,28 @@ export const getLatestOrderDate = async () => {
         const customers = await fetchAllCustomers('orders');
 
         let latestDate = null;
+        let latestDateRaw = null;
 
         customers.forEach(customer => {
             const customerOrders = customer.orders || [];
             customerOrders.forEach(order => {
-                // Strictly select orders that have items (matched with RMS)
-                if (order.items && order.items.length > 0) {
-                    const orderDate = new Date(order.orderDate);
-                    if (!isNaN(orderDate)) {
-                        if (!latestDate || orderDate > latestDate) {
-                            latestDate = orderDate;
+                // Get latest date from any order synced (Albatross orders)
+                if (order.orderDate) {
+                    const parsed = parseDatabaseDate(order.orderDate);
+                    if (parsed && !isNaN(parsed.getTime())) {
+                        if (!latestDate || parsed > latestDate) {
+                            latestDate = parsed;
+                            latestDateRaw = order.orderDate;
                         }
                     }
                 }
             });
         });
 
-        console.log(`📅 Latest RMS order date in Supabase: ${latestDate || 'No data'}`);
+        console.log(`📅 Latest Albatross order date in Supabase: ${latestDateRaw || 'No data'}`);
+        if (latestDate && latestDateRaw) {
+            latestDate.rawStr = latestDateRaw;
+        }
         return latestDate;
     } catch (error) {
         console.error('Error getting latest order date:', error);

@@ -662,6 +662,14 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
                 );
             }
 
+            // 6. Monetary filter (min/max monetary value)
+            if (intent.minMonetary !== undefined && intent.minMonetary !== null) {
+                list = list.filter(c => c.rfm?.monetary >= intent.minMonetary);
+            }
+            if (intent.maxMonetary !== undefined && intent.maxMonetary !== null) {
+                list = list.filter(c => c.rfm?.monetary <= intent.maxMonetary);
+            }
+
             if (list.length === 0) {
                 throw new Error('La consulta de IA fue comprendida pero no se encontraron clientes que coincidan.');
             }

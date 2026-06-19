@@ -242,6 +242,9 @@ function buildIntentPrompt(latestDbDate) {
     const referenceDate = latestDbDate ? new Date(latestDbDate + 'T12:00:00') : new Date();
     const todayReadable = referenceDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const todayISO = latestDbDate || referenceDate.toISOString().split('T')[0];
+    
+    const sixtyDaysAgo = new Date(referenceDate.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ninetyDaysAgo = new Date(referenceDate.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     return `You are a database query translation assistant for Punto Farma.
 Analyze the user's natural language question about customer RFM segments, purchases, and city locations, and extract the filtering parameters.
@@ -268,10 +271,14 @@ Fields to extract:
 - city: string ("Teg","SPS" or null)
 - searchTerm: string (a customer NAME or PHONE NUMBER only, or null. Do NOT put product names or SKU codes here.)
 - sku: string (a product SKU code like "10005845", or a product description if the user mentions a specific product, or null. This is ONLY for product/item filtering.)
-- generalStats: boolean (true ONLY for totals, counts, averages, or summary statistics. false for customer lists, details, or phone numbers.)
+- minMonetary: number or null (extract minimum total purchase/gasto amount if mentioned, e.g. "igual o mayor de 700" -> 700)
+- maxMonetary: number or null (extract maximum total purchase/gasto amount if mentioned, e.g. "menos de 500" -> 500)
+- generalStats: boolean (true ONLY for questions asking for summary stats/metrics like "total de ventas", "promedio de recencia", "ventas por ciudad", "resumen general". It MUST be false if the user asks to list/show/export clients, or asks for a list, table, names, phones, database, e.g. "generar una BD", "lista de clientes", "muestrame los clientes", "dame los telefonos".)
 - statsType: string (only when generalStats is true: "count" for simple counts, "breakdown_segment" for per-segment, "breakdown_city" for per-city, "full_summary" for everything. null when generalStats is false.)
 - dateFilter: object or null. Extract date ranges when mentioned.
-  * startDate: "YYYY-MM-DD" or null. IMPORTANT: The latest available data in the database is from ${todayReadable} (${todayISO}). Use this date as "today" for all relative calculations (e.g. "últimos 30 días" means from ${todayISO} minus 30 days to ${todayISO}). NEVER use a date after ${todayISO} as endDate.
+  * startDate: "YYYY-MM-DD" or null. IMPORTANT: The latest available data in the database is from ${todayReadable} (${todayISO}). Use this date as "today" for all relative calculations.
+    - For relative filters like "últimos 2 meses" (last 2 months), calculate the start date relative to ${todayISO} (e.g. ${todayISO} minus 60 days -> ${sixtyDaysAgo}).
+    - If the user says "últimos meses" (last few months) without specifying a number, assume a default of the last 3 months (90 days) relative to ${todayISO} (e.g. ${todayISO} minus 90 days -> ${ninetyDaysAgo}).
   * endDate: "YYYY-MM-DD" or null. Must NEVER exceed ${todayISO}.
   * type: "no_purchase" (clients who did NOT buy) or "purchase" (clients who DID buy).
 `;

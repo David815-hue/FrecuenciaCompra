@@ -323,6 +323,14 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
                     );
                 }
 
+                // 6. Filtrar por monto de compra monetario (gasto total del cliente)
+                if (intent.minMonetary !== undefined && intent.minMonetary !== null) {
+                    list = list.filter(c => c.rfm.monetary >= intent.minMonetary);
+                }
+                if (intent.maxMonetary !== undefined && intent.maxMonetary !== null) {
+                    list = list.filter(c => c.rfm.monetary <= intent.maxMonetary);
+                }
+
                 // Guardar la lista filtrada completa para la exportación a Excel
                 exportDataList = list;
 
@@ -454,7 +462,7 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
                             return `${d}/${m}/${y}`;
                         };
                         
-                        finalReply += `\n\n📅 **Rango de fecha de última compra:** del **${formatDateStr(minTime)}** al **${formatDateStr(maxDate)}**`;
+                        finalReply += `\n\n📅 **Rango de fecha de última compra:** del **${formatDateStr(minTime)}** al **${formatDateStr(maxTime)}**`;
                     }
                 }
 

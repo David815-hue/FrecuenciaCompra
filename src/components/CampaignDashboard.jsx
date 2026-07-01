@@ -89,14 +89,15 @@ const CampaignDashboard = ({ campaign, onStatusChange, onScriptChange }) => {
     const handleExportExcel = () => {
         if (assignments.length === 0) return;
 
-        const rows = assignments.map(a => {
+        const rows = assignments.filter(a => a.status !== 'do_not_contact').map(a => {
             const statusMap = {
                 pending: 'Pendiente',
                 no_answer: 'No contestó',
                 sale: 'Venta Concretada',
                 not_interested: 'No interesado',
                 callback: 'Llamar después',
-                unreachable: 'Inalcanzable'
+                unreachable: 'Inalcanzable',
+                do_not_contact: 'No contactar'
             };
 
             const isClosed = (a.attempts || 0) >= 3 && ['no_answer', 'callback'].includes(a.status);
@@ -155,7 +156,8 @@ const CampaignDashboard = ({ campaign, onStatusChange, onScriptChange }) => {
             sale: 'Venta Concretada',
             not_interested: 'No interesado',
             callback: 'Llamar después',
-            unreachable: 'Inalcanzable'
+            unreachable: 'Inalcanzable',
+            do_not_contact: 'No contactar'
         };
         return map[status] || status;
     };
@@ -177,6 +179,8 @@ const CampaignDashboard = ({ campaign, onStatusChange, onScriptChange }) => {
                 return 'bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-400';
             case 'unreachable':
                 return 'bg-violet-100 text-violet-800 dark:bg-violet-950/20 dark:text-violet-400';
+            case 'do_not_contact':
+                return 'bg-rose-100 text-rose-800 dark:bg-rose-950/25 dark:text-rose-300';
             default:
                 return 'bg-slate-100 text-slate-700';
         }
@@ -202,7 +206,8 @@ const CampaignDashboard = ({ campaign, onStatusChange, onScriptChange }) => {
 
     const total = stats.total || 0;
     const pending = stats.pending || 0;
-    const completed = total - pending;
+    const excluded = stats.do_not_contact || 0;
+    const completed = total - pending - excluded;
     const sales = stats.sale || 0;
     const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
     const effectiveness = completed > 0 ? Math.round((sales / completed) * 100) : 0;
@@ -332,7 +337,7 @@ const CampaignDashboard = ({ campaign, onStatusChange, onScriptChange }) => {
                     { label: 'Ventas', val: sales, color: 'text-emerald-600 dark:text-emerald-400', icon: CheckCircle2, bg: 'bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-500/10' },
                     { label: 'Eficacia Venta', val: `${effectiveness}%`, color: 'text-blue-600 dark:text-blue-400', icon: BarChart3, bg: 'bg-blue-50/30 dark:bg-blue-900/10' },
                     { label: 'Cerradas (3 Intentos)', val: stats.closed || 0, color: 'text-rose-600 dark:text-rose-400', icon: PhoneOff, bg: 'bg-slate-100 dark:bg-slate-900/20' },
-                    { label: 'Intentos Totales', val: stats.total_attempts || 0, color: 'text-purple-600 dark:text-purple-400', icon: Phone, bg: 'bg-slate-100 dark:bg-slate-900/20' }
+                    { label: excluded > 0 ? 'No contactar' : 'Intentos Totales', val: excluded > 0 ? excluded : (stats.total_attempts || 0), color: excluded > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-purple-600 dark:text-purple-400', icon: excluded > 0 ? PhoneOff : Phone, bg: 'bg-slate-100 dark:bg-slate-900/20' }
                 ].map((s, idx) => (
                     <div key={idx} className={`p-4 rounded-xl flex flex-col justify-between ${s.bg}`}>
                         <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -469,6 +474,7 @@ const CampaignDashboard = ({ campaign, onStatusChange, onScriptChange }) => {
                             <option value="not_interested">No interesado</option>
                             <option value="callback">Llamar después</option>
                             <option value="unreachable">Inalcanzable</option>
+                            <option value="do_not_contact">No contactar</option>
                         </select>
 
                         {/* Gestora Select */}

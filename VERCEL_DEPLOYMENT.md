@@ -21,6 +21,7 @@ Go to your Vercel project settings → Environment Variables and add:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`  
 - `SUPABASE_SERVICE_KEY`
+- `GROQ_API_KEY` → clave privada usada por `/api/chat` (obligatoria para el asistente de IA)
 
 **From `firebase-service-account.json`:**
 - `FIREBASE_PROJECT_ID` → `frecuecia-4ee83`
@@ -38,6 +39,8 @@ Go to your Vercel project settings → Environment Variables and add:
 2. Import repository in Vercel
 3. Vercel auto-deploys on each push
 
+> Después de agregar o cambiar `GROQ_API_KEY`, crea un nuevo deployment. Los deployments anteriores no reciben automáticamente el nuevo valor.
+
 **Via CLI:**
 ```bash
 vercel --prod
@@ -48,6 +51,7 @@ vercel --prod
 - Login should work
 - Admin Panel should load users
 - User creation/editing/deletion should work
+- `POST /api/chat` debe responder desde cualquier computadora (no solamente desde el servidor local)
 
 ## 📁 Project Structure for Vercel
 

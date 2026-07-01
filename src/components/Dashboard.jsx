@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Users, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, BarChart3, TrendingUp, Activity, Package, Hash } from 'lucide-react';
+import { Search, Download, Filter, ShoppingBag, ArrowLeft, User, Users, Phone, Mail, Calendar, MapPin, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, BarChart3, TrendingUp, Activity, Package, Hash, Ban, ShieldCheck, Loader2 } from 'lucide-react';
 import { filterData, exportToExcel } from '../utils/dataProcessing';
 import { getSuggestions } from '../utils/searchSuggestions';
 import MonthVisualizer from './MonthVisualizer';
@@ -9,15 +9,33 @@ import ContributionGraph from './ContributionGraph';
 import RFMAnalysis from './RFMAnalysis';
 import GestoresAnalysis from './GestoresAnalysis';
 import GlassDatePicker from './GlassDatePicker';
+import { suppressContact } from '../utils/contactSuppressionUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = false }) => {
+const getUniqueProducts = (customer) => {
+    const products = new Map();
+    (customer?.orders || []).forEach(order => {
+        (order.items || []).forEach(item => {
+            const sku = String(item.sku || '').trim();
+            const name = String(item.description || sku || 'Producto').trim();
+            const key = sku || name.toLowerCase();
+            if (!products.has(key)) products.set(key, { sku, name });
+        });
+    });
+    return Array.from(products.values());
+};
+
+const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = false, currentUser, onContactSuppressed }) => {
     const [query, setQuery] = useState('');
     const [onlyRecurring, setOnlyRecurring] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(null);
     const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [showSuppressionForm, setShowSuppressionForm] = useState(false);
+    const [suppressionReason, setSuppressionReason] = useState('Solicitó no recibir contactos');
+    const [suppressionNotes, setSuppressionNotes] = useState('');
+    const [isSuppressing, setIsSuppressing] = useState(false);
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'rfm'
 
     // New filter states
@@ -121,6 +139,8 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                     phone: order.phone,
                     identity: order.identity || 'No se encontró',
                     city: order.city,
+                    isContactSuppressed: order.isContactSuppressed === true,
+                    contactSuppressedSkus: order.contactSuppressedSkus || [],
                     orders: [],
                     totalInvestment: 0
                 };
@@ -150,6 +170,8 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                     phone: order.phone,
                     identity: order.identity || 'No se encontró',
                     city: order.city,
+                    isContactSuppressed: order.isContactSuppressed === true,
+                    contactSuppressedSkus: order.contactSuppressedSkus || [],
                     orders: [],
                     totalInvestment: 0
                 };
@@ -429,6 +451,38 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
         } else {
             exportToExcel(displayList, query);
         }
+    };
+
+    const handleSuppressSelectedCustomer = async () => {
+        if (!selectedCustomer) return;
+        setIsSuppressing(true);
+        try {
+            const result = await suppressContact({
+                phone: selectedCustomer.phone,
+                customerName: selectedCustomer.name,
+                reason: suppressionReason,
+                notes: suppressionNotes,
+                products: getUniqueProducts(selectedCustomer),
+                actor: currentUser
+            });
+            setSelectedCustomer(previous => ({ ...previous, isContactSuppressed: true }));
+            setShowSuppressionForm(false);
+            setSuppressionNotes('');
+            onContactSuppressed?.();
+            if (result.cancelledAssignments > 0) {
+                alert(`Cliente marcado como No contactar. Se cerraron ${result.cancelledAssignments} gestiones pendientes.`);
+            }
+        } catch (error) {
+            alert(`No se pudo marcar al cliente: ${error.message}`);
+        } finally {
+            setIsSuppressing(false);
+        }
+    };
+
+    const closeCustomerHistory = () => {
+        setSelectedCustomer(null);
+        setShowSuppressionForm(false);
+        setSuppressionNotes('');
     };
 
     const handleMonthClick = (customer) => (monthKey, monthData) => {
@@ -1016,7 +1070,14 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                         </div>
 
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="font-bold text-slate-800 dark:text-slate-200 text-base mb-1 truncate">{customer.name}</div>
+                                                            <div className="mb-1 flex flex-wrap items-center gap-2">
+                                                                <div className="truncate text-base font-bold text-slate-800 dark:text-slate-200">{customer.name}</div>
+                                                                {(customer.isContactSuppressed || customer.contactSuppressedSkus?.length > 0) && (
+                                                                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rose-700 dark:bg-rose-500/15 dark:text-rose-300" title="Este cliente no se incluirá en bases ni campañas">
+                                                                        <Ban size={10} /> {customer.isContactSuppressed ? 'No contactar' : `${customer.contactSuppressedSkus.length} SKU sin contacto`}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                             <div className="flex flex-col gap-1">
                                                                 {customer.email && (
                                                                     <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
@@ -1106,7 +1167,10 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                             onClick={handleMonthClick(customer)}
                                                         />
                                                         <button
-                                                            onClick={() => setSelectedCustomer(customer)}
+                                                            onClick={() => {
+                                                                setSelectedCustomer(customer);
+                                                                setShowSuppressionForm(false);
+                                                            }}
                                                             className="shrink-0 w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-all hover:scale-110 hover:shadow-md"
                                                             title="Ver historial de compras completo"
                                                         >
@@ -1264,10 +1328,21 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         {/* Contribution Graph Modal */}
                         <ContributionModal
                             isOpen={selectedCustomer !== null}
-                            onClose={() => setSelectedCustomer(null)}
+                            onClose={closeCustomerHistory}
                             customerName={selectedCustomer?.name || ''}
+                            customerPhone={selectedCustomer?.phone || ''}
                             orders={selectedCustomer?.orders || []}
                             searchQuery={query}
+                            isContactSuppressed={selectedCustomer?.isContactSuppressed === true}
+                            suppressedSkus={selectedCustomer?.contactSuppressedSkus || []}
+                            currentUser={currentUser}
+                            onContactSuppressed={(sku) => {
+                                setSelectedCustomer(previous => previous ? {
+                                    ...previous,
+                                    contactSuppressedSkus: Array.from(new Set([...(previous.contactSuppressedSkus || []), sku]))
+                                } : previous);
+                                onContactSuppressed?.();
+                            }}
                         />
                     </motion.div>
                 ) : viewMode === 'rfm' ? (
@@ -1304,13 +1379,13 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
             {/* Customer History Modal */}
             < AnimatePresence >
-                {selectedCustomer && (
+                {false && selectedCustomer && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-8 bg-black/40 backdrop-blur-sm overflow-y-auto"
-                        onClick={() => setSelectedCustomer(null)}
+                        onClick={closeCustomerHistory}
                     >
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
@@ -1329,16 +1404,38 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                         {selectedCustomer.name}
                                     </p>
                                 </div>
-                                <button
-                                    onClick={() => setSelectedCustomer(null)}
-                                    className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-all shadow-sm"
-                                >
-                                    <X size={20} />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {selectedCustomer.isContactSuppressed ? (
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"><Ban size={14} /> No contactar</span>
+                                    ) : (
+                                        <button onClick={() => setShowSuppressionForm(previous => !previous)} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white/80 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 dark:border-rose-900/60 dark:bg-slate-900/70 dark:text-rose-300 dark:hover:bg-rose-950/25"><Ban size={14} /> Marcar No contactar</button>
+                                    )}
+                                    <button
+                                        onClick={closeCustomerHistory}
+                                        className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-all shadow-sm"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Content */}
                             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)] custom-scrollbar">
+                                {showSuppressionForm && !selectedCustomer.isContactSuppressed && (
+                                    <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 dark:border-rose-900/50 dark:bg-rose-950/20">
+                                        <div className="flex items-start gap-3"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-rose-600 dark:text-rose-400" /><div><p className="text-sm font-bold text-rose-800 dark:text-rose-200">Confirmar exclusión de contacto</p><p className="mt-1 text-xs leading-5 text-rose-700/80 dark:text-rose-300/80">Se conservarán sus compras, pero no aparecerá en bases descargables, IA ni campañas futuras.</p></div></div>
+                                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            <label className="space-y-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">Motivo
+                                                <select value={suppressionReason} onChange={event => setSuppressionReason(event.target.value)} className="w-full rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-rose-400 dark:border-rose-900/60 dark:bg-slate-900 dark:text-white"><option>Solicitó no recibir contactos</option><option>Queja por comunicaciones</option><option>Número pertenece a otra persona</option><option>Otro</option></select>
+                                            </label>
+                                            <label className="space-y-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">Nota opcional
+                                                <input value={suppressionNotes} onChange={event => setSuppressionNotes(event.target.value)} placeholder="Contexto de la solicitud" className="w-full rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-rose-400 dark:border-rose-900/60 dark:bg-slate-900 dark:text-white" />
+                                            </label>
+                                        </div>
+                                        <div className="mt-4 flex justify-end gap-2"><button onClick={() => setShowSuppressionForm(false)} className="rounded-lg px-3 py-2 text-xs font-bold text-slate-500 hover:bg-white/70 dark:hover:bg-slate-800">Cancelar</button><button onClick={handleSuppressSelectedCustomer} disabled={isSuppressing || !selectedCustomer.phone} className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">{isSuppressing ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />} Confirmar</button></div>
+                                        {!selectedCustomer.phone && <p className="mt-2 text-right text-xs font-semibold text-rose-600">Este cliente no tiene teléfono registrado.</p>}
+                                    </div>
+                                )}
                                 {/* Stats Grid */}
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                                     <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
@@ -1367,6 +1464,13 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                         <div className="text-2xl font-bold text-violet-900 dark:text-violet-300">
                                             L. {(selectedCustomer.orders.reduce((sum, order) => sum + parseFloat(order.totalAmount || 0), 0) / selectedCustomer.orders.length).toLocaleString('es-HN', { minimumFractionDigits: 2 })}
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="mb-8 border-y border-slate-200 py-5 dark:border-slate-800">
+                                    <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-900 dark:text-white">Productos comprados</h3><p className="mt-0.5 text-xs text-slate-500">SKU y nombre asociados a este cliente</p></div><span className="text-xs font-bold text-slate-400">{getUniqueProducts(selectedCustomer).length} productos</span></div>
+                                    <div className="mt-3 flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-1 custom-scrollbar">
+                                        {getUniqueProducts(selectedCustomer).map(product => <span key={product.sku || product.name} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{product.sku && <span className="mr-1.5 font-mono text-indigo-600 dark:text-indigo-400">{product.sku}</span>}{product.name}</span>)}
                                     </div>
                                 </div>
 

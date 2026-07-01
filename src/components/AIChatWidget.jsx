@@ -45,6 +45,7 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
                         phone: order.phone,
                         identity: order.identity || 'No se encontró',
                         city: order.city,
+                        contactSuppressedSkus: order.contactSuppressedSkus || [],
                         orders: [],
                         totalInvestment: 0
                     };
@@ -145,8 +146,8 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
         setLoading(true);
 
         try {
-            // API URL: works in both Vite dev (middleware plugin) and Vercel production
-            const API_URL = '/api';
+            // Relative on Vercel; configurable when the frontend is hosted elsewhere.
+            const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
             // Build conversation history (last 4 messages, truncated)
             const history = messages
@@ -175,7 +176,8 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
                 if (intentResponse.status === 429) {
                     throw new Error('⏳ Demasiadas solicitudes. Espera unos segundos e intenta de nuevo.');
                 }
-                throw new Error(`Error en el servidor al extraer intención: ${intentResponse.statusText}`);
+                const errorData = await intentResponse.json().catch(() => null);
+                throw new Error(errorData?.error || `Error en el servidor de IA (${intentResponse.status}).`);
             }
 
             const intentData = await intentResponse.json();
@@ -314,6 +316,7 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
                 if (intent.sku) {
                     const skuTerm = intent.sku.toLowerCase().trim();
                     list = list.filter(c => 
+                        !(c.contactSuppressedSkus || []).some(sku => String(sku).toLowerCase() === skuTerm) &&
                         c.orders.some(order => 
                             (order.items || []).some(item => 
                                 (item.sku && item.sku.toLowerCase() === skuTerm) ||
@@ -427,7 +430,8 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
                 if (response.status === 429) {
                     throw new Error('⏳ Demasiadas solicitudes. Espera unos segundos e intenta de nuevo.');
                 }
-                throw new Error(`Error en el servidor al generar respuesta: ${response.statusText}`);
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.error || `Error en el servidor de IA (${response.status}).`);
             }
 
             const data = await response.json();
@@ -477,7 +481,10 @@ const AIChatWidget = ({ customers = [], isOpen = false, setIsOpen, onCreateCampa
 
         } catch (error) {
             console.error('Error sending message:', error);
-            setMessages(prev => [...prev, { role: 'assistant', text: `❌ Error: ${error.message || 'No se pudo conectar con el servidor.'}` }]);
+            const message = error instanceof TypeError && error.message === 'Failed to fetch'
+                ? 'No se pudo acceder al servidor de IA. Verifica que /api/chat esté desplegado o configura VITE_API_URL.'
+                : (error.message || 'No se pudo conectar con el servidor.');
+            setMessages(prev => [...prev, { role: 'assistant', text: `❌ Error: ${message}` }]);
         } finally {
             setLoading(false);
         }

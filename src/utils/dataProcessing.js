@@ -217,13 +217,18 @@ export const filterDataByDate = (data, cutoffDate) => {
 export const exportToExcel = (customers, activeQuery) => {
     // Parse active query to get filtered SKUs
     const terms = activeQuery ? activeQuery.split(/[\n,]+/).map(t => t.trim().toLowerCase()).filter(Boolean) : [];
+    const contactableCustomers = (customers || []).filter(customer => {
+        if (customer.isContactSuppressed) return false;
+        const suppressedSkus = (customer.contactSuppressedSkus || []).map(sku => String(sku).toLowerCase());
+        return !suppressedSkus.some(sku => terms.some(term => term === sku || term.includes(sku)));
+    });
 
     // Step 1: Calculate global date range and identify all unique SKUs in filter
     let minTime = Infinity;
     let maxTime = -Infinity;
     const skuSet = new Set();
 
-    customers.forEach(customer => {
+    contactableCustomers.forEach(customer => {
         customer.orders.forEach(order => {
             const d = new Date(order.orderDate);
             if (!isNaN(d)) {
@@ -271,7 +276,7 @@ export const exportToExcel = (customers, activeQuery) => {
     // Step 3: Build rows
     const rows = [];
 
-    customers.forEach(customer => {
+    contactableCustomers.forEach(customer => {
         // Aggregate sales by month-SKU for this customer
         const salesMap = {}; // { "2025-07-SKU123": 5, "2025-08-SKU456": 3 }
 

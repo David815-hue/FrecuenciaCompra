@@ -2,11 +2,22 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Phone, Check, X, Clock, MessageSquare, AlertTriangle, Search, 
-    ArrowUpDown, Loader2, Award, PhoneOff, Calendar, AlertCircle
+    ArrowUpDown, Loader2, Award, PhoneOff, Calendar, AlertCircle, Ban, ShieldCheck
 } from 'lucide-react';
 import { getAssignmentsByGestora, updateAssignmentStatus } from '../utils/campaignUtils';
+import { suppressContact } from '../utils/contactSuppressionUtils';
 
-const GestoraCallView = ({ currentUser }) => {
+const getAssignmentProducts = (assignment) => {
+    const products = new Map();
+    (assignment?.client_extra?.orders || []).forEach(order => (order.items || []).forEach(item => {
+        const sku = String(item.sku || '').trim();
+        const name = String(item.description || sku || 'Producto').trim();
+        if (sku && !products.has(sku)) products.set(sku, { sku, name });
+    }));
+    return Array.from(products.values());
+};
+
+const GestoraCallView = ({ currentUser, onContactSuppressed, onAssignmentsChanged }) => {
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -18,6 +29,9 @@ const GestoraCallView = ({ currentUser }) => {
     const [editingNoteId, setEditingNoteId] = useState(null);
     const [noteText, setNoteText] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
+    const [suppressionTarget, setSuppressionTarget] = useState(null);
+    const [selectedSuppressionSku, setSelectedSuppressionSku] = useState('');
+    const [isSuppressing, setIsSuppressing] = useState(false);
     
     // Call scripts display state
     const [showScripts, setShowScripts] = useState(true);
@@ -44,7 +58,7 @@ const GestoraCallView = ({ currentUser }) => {
             if (res.success) {
                 // Filter out assignments from non-active campaigns
                 const activeCampaignAssignments = res.data.filter(a => 
-                    a.campaigns && a.campaigns.status === 'active'
+                    a.campaigns && a.campaigns.status === 'active' && a.status !== 'do_not_contact'
                 );
                 setAssignments(activeCampaignAssignments);
             } else {
@@ -141,6 +155,29 @@ const GestoraCallView = ({ currentUser }) => {
             setIsSavingNote(false);
             setEditingNoteId(null);
             setNoteText('');
+        }
+    };
+
+    const handleSuppressContact = async () => {
+        if (!suppressionTarget) return;
+        const selectedProduct = getAssignmentProducts(suppressionTarget).find(product => product.sku === selectedSuppressionSku);
+        setIsSuppressing(true);
+        try {
+            await suppressContact({
+                phone: suppressionTarget.client_phone,
+                customerName: suppressionTarget.client_name,
+                sku: selectedSuppressionSku,
+                productName: selectedProduct?.name || '',
+                actor: currentUser
+            });
+            await loadAssignments();
+            onContactSuppressed?.();
+            setSuppressionTarget(null);
+            setSelectedSuppressionSku('');
+        } catch (err) {
+            alert(`No se pudo excluir al cliente: ${err.message}`);
+        } finally {
+            setIsSuppressing(false);
         }
     };
 
@@ -584,6 +621,15 @@ const GestoraCallView = ({ currentUser }) => {
                                                 <Check size={14} />
                                                 <span className="text-[9px] font-bold">¡Venta!</span>
                                             </button>
+
+                                            <button
+                                                onClick={() => { setSuppressionTarget(a); setSelectedSuppressionSku(''); }}
+                                                className="col-span-5 flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2 text-[10px] font-bold text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-300 dark:hover:bg-rose-950/35"
+                                                title="Excluir al cliente de cualquier contacto futuro"
+                                            >
+                                                <Ban size={13} />
+                                                Cliente solicitó no ser contactado
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -650,6 +696,35 @@ const GestoraCallView = ({ currentUser }) => {
                                         <span>Guardar Nota</span>
                                     )}
                                 </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {suppressionTarget && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                        >
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400"><Ban size={19} /></div>
+                                    <div><h3 className="font-bold text-slate-900 dark:text-white">Agregar a No contactar</h3><p className="mt-1 text-xs text-slate-500">{suppressionTarget.client_name} · {suppressionTarget.client_phone}</p></div>
+                                </div>
+                                <button onClick={() => setSuppressionTarget(null)} className="text-slate-400 transition hover:text-slate-700 dark:hover:text-white"><X size={18} /></button>
+                            </div>
+                            <p className="mt-4 rounded-xl bg-rose-50 p-3 text-xs leading-5 text-rose-700 dark:bg-rose-950/25 dark:text-rose-300">Escoge únicamente el producto que no debe volver a ofrecerse. El cliente seguirá disponible para los demás SKU.</p>
+                            <div className="mt-4 flex max-h-36 flex-wrap gap-2 overflow-y-auto pr-1 custom-scrollbar">
+                                {getAssignmentProducts(suppressionTarget).map(product => <button key={product.sku} type="button" onClick={() => setSelectedSuppressionSku(product.sku)} className={`rounded-lg border px-2.5 py-2 text-left text-[10px] font-semibold transition ${selectedSuppressionSku === product.sku ? 'border-rose-500 bg-rose-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'}`}><span className={`mr-1.5 font-mono ${selectedSuppressionSku === product.sku ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`}>{product.sku}</span>{product.name}</button>)}
+                            </div>
+                            <div className="mt-5 flex justify-end gap-2">
+                                <button onClick={() => setSuppressionTarget(null)} disabled={isSuppressing} className="rounded-lg px-3.5 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Cancelar</button>
+                                <button onClick={handleSuppressContact} disabled={isSuppressing || !selectedSuppressionSku} className="flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-60">{isSuppressing ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} No contactar por este SKU</button>
                             </div>
                         </motion.div>
                     </div>

@@ -238,7 +238,7 @@ const CampaignManager = ({ customersData = [], currentUser, preloadedClients = n
                         const stats = campaignStats[camp.id] || { total: 0, pending: 0, sale: 0 };
                         const total = stats.total || camp.total_clients || 0;
                         const pending = stats.pending !== undefined ? stats.pending : total;
-                        const completed = total - pending;
+                        const completed = total - pending - (stats.do_not_contact || 0);
                         const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
                         const sales = stats.sale || 0;
 

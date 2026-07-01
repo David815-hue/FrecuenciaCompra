@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
@@ -8,14 +8,16 @@ import ThemeToggle from './components/ThemeToggle';
 import AIChatWidget from './components/AIChatWidget';
 import CampaignManager from './components/CampaignManager';
 import GestoraCallView from './components/GestoraCallView';
+import ContactSuppressionPanel from './components/ContactSuppressionPanel';
 import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets, filterDataByDate } from './utils/dataProcessing';
-import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, getLatestOrderDate } from './utils/supabaseUtils';
+import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, formatLatestOrderDate, getLatestOrderDate } from './utils/supabaseUtils';
 import { getCurrentUser, onAuthStateChange, logout } from './utils/authUtils';
 import { runAutomaticSync } from './utils/albatrossService';
-import { Cloud, CloudOff, RefreshCw, Trash2, LogOut, User, Shield, Sparkles } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, Trash2, LogOut, User, Shield, Sparkles, Ban } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from './config/supabase';
+import { decorateWithSuppressionStatus, filterContactableCustomers, getContactSuppressions } from './utils/contactSuppressionUtils';
 
 function App() {
   const { theme, toggleTheme } = useTheme();
@@ -34,6 +36,8 @@ function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [preloadedCampaignClients, setPreloadedCampaignClients] = useState(null);
   const [pendingCallsCount, setPendingCallsCount] = useState(0);
+  const [latestOrderDate, setLatestOrderDate] = useState(null);
+  const [contactSuppressions, setContactSuppressions] = useState([]);
   const [syncStatus, setSyncStatus] = useState({
     lastSync: null,
     isLoading: false,
@@ -100,7 +104,11 @@ function App() {
   const loadFromCloud = async () => {
     setSyncStatus(prev => ({ ...prev, isLoading: true, error: null }));
     try {
-      const result = await loadCustomersFromFirestore();
+      const [result, latestDate] = await Promise.all([
+        loadCustomersFromFirestore(),
+        getLatestOrderDate()
+      ]);
+      setLatestOrderDate(latestDate);
       if (result.success && result.customers.length > 0) {
         setData(result.customers);
         setSyncStatus({
@@ -125,10 +133,34 @@ function App() {
     }
   };
 
+  const loadSuppressions = async () => {
+    try {
+      const records = await getContactSuppressions();
+      setContactSuppressions(records);
+      return records;
+    } catch (error) {
+      console.error('Error loading contact suppressions:', error);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    if (!authState.user) return undefined;
+    loadSuppressions();
+    const refreshOnFocus = () => loadSuppressions();
+    const interval = window.setInterval(loadSuppressions, 30000);
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [authState.user]);
+
   const saveToCloud = async (processedData) => {
     try {
       const result = await saveCustomersToFirestore(processedData);
       if (result.success) {
+        setLatestOrderDate(await getLatestOrderDate());
         setSyncStatus({
           lastSync: result.timestamp,
           isLoading: false,
@@ -269,30 +301,18 @@ function App() {
     }
   };
 
-  const formattedLastOrderDate = (() => {
-    if (!data || data.length === 0) return null;
-
-    let latestTime = null;
-    data.forEach((order) => {
-      const date = new Date(order.orderDate);
-      if (!isNaN(date.getTime())) {
-        if (latestTime === null || date.getTime() > latestTime) {
-          latestTime = date.getTime();
-        }
-      }
-    });
-
-    if (latestTime === null) return null;
-    const dateObj = new Date(latestTime);
-    const datePart = dateObj.toLocaleDateString('es-HN', {
-      day: '2-digit',
-      month: '2-digit',
-      timeZone: 'UTC'
-    });
-    return `${datePart}, 11:59 p. m.`;
-  })();
+  const formattedLastOrderDate = formatLatestOrderDate(latestOrderDate);
 
   // Loading state during auth initialization
+  const dataWithSuppressionStatus = useMemo(
+    () => decorateWithSuppressionStatus(data || [], contactSuppressions),
+    [data, contactSuppressions]
+  );
+  const contactableData = useMemo(
+    () => filterContactableCustomers(dataWithSuppressionStatus, contactSuppressions),
+    [dataWithSuppressionStatus, contactSuppressions]
+  );
+
   if (authState.loading || (isProcessing || syncStatus.isLoading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 relative overflow-hidden transition-colors duration-500">
@@ -393,6 +413,21 @@ function App() {
               </button>
               {isAdmin && (
                 <button
+                  onClick={() => setActiveView('suppression')}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${activeView === 'suppression'
+                    ? 'bg-rose-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
+                    }`}
+                >
+                  <Ban size={12} />
+                  <span>No contactar</span>
+                  {contactSuppressions.length > 0 && (
+                    <span className={`inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold ${activeView === 'suppression' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'}`}>{contactSuppressions.length}</span>
+                  )}
+                </button>
+              )}
+              {isAdmin && (
+                <button
                   onClick={() => setActiveView('admin')}
                   className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${activeView === 'admin'
                     ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md'
@@ -490,7 +525,21 @@ function App() {
       {/* Main Content */}
       <main className="relative z-10 min-h-screen pt-20 pb-10 px-6">
         <AnimatePresence mode="wait">
-          {isAdmin && activeView === 'admin' ? (
+          {isAdmin && activeView === 'suppression' ? (
+            <motion.div
+              key="suppression"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ContactSuppressionPanel
+                currentUser={{ ...authState.profile, uid: authState.user?.uid }}
+                customersData={data || []}
+                onSuppressionsChanged={loadSuppressions}
+              />
+            </motion.div>
+          ) : isAdmin && activeView === 'admin' ? (
             <motion.div
               key="admin"
               initial={{ opacity: 0, y: 20 }}
@@ -510,14 +559,15 @@ function App() {
             >
               {isAdmin ? (
                 <CampaignManager 
-                  customersData={data || []} 
+                  customersData={contactableData}
                   currentUser={authState.profile} 
                   preloadedClients={preloadedCampaignClients}
                   onClearPreloadedClients={() => setPreloadedCampaignClients(null)}
                 />
               ) : (
                 <GestoraCallView 
-                  currentUser={authState.profile} 
+                  currentUser={{ ...authState.profile, uid: authState.user?.uid }}
+                  onContactSuppressed={loadSuppressions}
                   onAssignmentsChanged={(updatedAssignments) => {
                     const count = updatedAssignments.filter(a => ['pending', 'no_answer', 'callback'].includes(a.status)).length;
                     setPendingCallsCount(count);
@@ -558,11 +608,13 @@ function App() {
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
               <Dashboard
-                data={data}
+                data={dataWithSuppressionStatus}
                 onBack={isAdmin ? handleBack : undefined}
                 userRole={authState.profile.role}
                 userName={authState.profile.displayName}
                 isRestricted={isGestora}
+                currentUser={{ ...authState.profile, uid: authState.user?.uid }}
+                onContactSuppressed={loadSuppressions}
               />
             </motion.div>
           )}
@@ -570,7 +622,7 @@ function App() {
       </main>
       {isAdmin && data && data.length > 0 && (
         <AIChatWidget 
-          customers={data} 
+          customers={contactableData}
           isOpen={isChatOpen} 
           setIsOpen={setIsChatOpen} 
           onCreateCampaign={(clients) => {

@@ -1,15 +1,33 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, TrendingUp, ShoppingBag, DollarSign, Calendar, Package, Layers, Download } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { X, TrendingUp, ShoppingBag, DollarSign, Calendar, Package, Layers, Download, Ban, ShieldCheck, Loader2 } from 'lucide-react';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import ContributionGraph from './ContributionGraph';
 import { format, getMonth, getYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
+import { suppressContact } from '../utils/contactSuppressionUtils';
 
-const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery = '' }) => {
+const ContributionModal = ({ isOpen, onClose, customerName, customerPhone, orders, searchQuery = '', suppressedSkus = [], currentUser, onContactSuppressed }) => {
     // Tab state: 'all' or 'sku'
     const [activeTab, setActiveTab] = useState('all');
+    const [showSuppressionForm, setShowSuppressionForm] = useState(false);
+    const [selectedSuppressionSku, setSelectedSuppressionSku] = useState('');
+    const [isSuppressing, setIsSuppressing] = useState(false);
+    const [suppressedSkuList, setSuppressedSkuList] = useState(suppressedSkus);
+
+    const products = useMemo(() => {
+        const map = new Map();
+        orders.forEach(order => (order.items || []).forEach(item => {
+            const sku = String(item.sku || '').trim();
+            const name = String(item.description || sku || 'Producto').trim();
+            const key = sku || name.toLowerCase();
+            if (!map.has(key)) map.set(key, { sku, name });
+        }));
+        return Array.from(map.values());
+    }, [orders]);
+
+    const resolvedPhone = customerPhone || orders.find(order => order.phone || order.celular)?.phone || orders.find(order => order.celular)?.celular || '';
 
     // Filter orders based on search query (SKU filter)
     const skuFilteredOrders = useMemo(() => {
@@ -51,6 +69,13 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
     // Set initial tab based on search query when modal opens
     useEffect(() => {
         if (isOpen) {
+            setSuppressedSkuList(suppressedSkus);
+            setShowSuppressionForm(false);
+            const matchingProduct = products.find(product => {
+                const term = searchQuery.toLowerCase().trim();
+                return term && `${product.sku} ${product.name}`.toLowerCase().includes(term);
+            });
+            setSelectedSuppressionSku(matchingProduct?.sku || '');
             // If there's an active search with results, show the filtered tab
             if (searchQuery && searchQuery.trim().length >= 3 && skuFilteredOrders.length > 0) {
                 setActiveTab('sku');
@@ -58,7 +83,31 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                 setActiveTab('all');
             }
         }
-    }, [isOpen, searchQuery, skuFilteredOrders.length]);
+    }, [isOpen, searchQuery, skuFilteredOrders.length, suppressedSkus, products]);
+
+    const handleSuppressContact = async () => {
+        const selectedProduct = products.find(product => product.sku === selectedSuppressionSku);
+        setIsSuppressing(true);
+        try {
+            const result = await suppressContact({
+                phone: resolvedPhone,
+                customerName,
+                sku: selectedSuppressionSku,
+                productName: selectedProduct?.name || '',
+                actor: currentUser
+            });
+            setSuppressedSkuList(previous => Array.from(new Set([...previous, selectedSuppressionSku])));
+            setShowSuppressionForm(false);
+            onContactSuppressed?.(selectedSuppressionSku);
+            if (result.cancelledAssignments > 0) {
+                alert(`Cliente marcado como No contactar. Se cerraron ${result.cancelledAssignments} gestiones pendientes.`);
+            }
+        } catch (error) {
+            alert(`No se pudo marcar al cliente: ${error.message}`);
+        } finally {
+            setIsSuppressing(false);
+        }
+    };
 
     // Get the orders to display based on active tab
     const displayOrders = activeTab === 'all' ? orders : skuFilteredOrders;
@@ -153,7 +202,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
             {isOpen && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                     {/* Backdrop */}
-                    <motion.div
+                    <Motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -162,7 +211,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                     />
 
                     {/* Modal */}
-                    <motion.div
+                    <Motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -180,6 +229,15 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
+                                    onClick={() => setShowSuppressionForm(previous => !previous)}
+                                    className="flex items-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition-all hover:bg-rose-50 hover:shadow-md dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/25"
+                                    title="Elegir el SKU que no se debe contactar"
+                                >
+                                    <Ban size={17} />
+                                    <span className="hidden md:inline">No contactar</span>
+                                    {suppressedSkuList.length > 0 && <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] dark:bg-rose-500/20">{suppressedSkuList.length}</span>}
+                                </button>
+                                <button
                                     onClick={exportToExcel}
                                     className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white font-semibold transition-all shadow-md hover:shadow-lg"
                                     title="Descargar Excel"
@@ -195,6 +253,23 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                                 </button>
                             </div>
                         </div>
+
+                        <AnimatePresence>
+                            {showSuppressionForm && (
+                                <Motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="border-b border-rose-200 bg-rose-50/80 px-6 py-4 dark:border-rose-900/50 dark:bg-rose-950/25">
+                                    <div className="flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-bold text-rose-800 dark:text-rose-200"><ShieldCheck size={17} /> Escoge el SKU</div><p className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">El cliente seguirá disponible para los demás productos.</p></div><button onClick={() => setShowSuppressionForm(false)} className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white">Cancelar</button></div>
+                                    <div className="mt-3 flex max-h-28 flex-wrap gap-2 overflow-y-auto pr-1 custom-scrollbar">
+                                        {products.filter(product => product.sku).map(product => {
+                                            const alreadySuppressed = suppressedSkuList.includes(product.sku);
+                                            const selected = selectedSuppressionSku === product.sku;
+                                            return <button key={product.sku} type="button" disabled={alreadySuppressed} onClick={() => setSelectedSuppressionSku(product.sku)} className={`rounded-lg border px-2.5 py-2 text-left text-[10px] font-semibold transition ${alreadySuppressed ? 'cursor-not-allowed border-rose-200 bg-rose-100 text-rose-500 opacity-70 dark:border-rose-900/60 dark:bg-rose-950/40' : selected ? 'border-rose-500 bg-rose-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}><span className={`mr-1.5 font-mono ${selected ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`}>{product.sku}</span>{product.name}{alreadySuppressed && <span className="ml-1">· marcado</span>}</button>;
+                                        })}
+                                    </div>
+                                    <div className="mt-3 flex justify-end"><button onClick={handleSuppressContact} disabled={isSuppressing || !resolvedPhone || !selectedSuppressionSku || suppressedSkuList.includes(selectedSuppressionSku)} className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">{isSuppressing ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />} No contactar por este SKU</button></div>
+                                    {!resolvedPhone && <p className="mt-2 text-right text-xs font-semibold text-rose-600">Este cliente no tiene teléfono registrado.</p>}
+                                </Motion.div>
+                            )}
+                        </AnimatePresence>
 
                         {/* Tabs */}
                         {searchQuery && searchQuery.trim().length >= 3 && skuFilteredOrders.length > 0 && (
@@ -330,7 +405,7 @@ const ContributionModal = ({ isOpen, onClose, customerName, orders, searchQuery 
                                 </div>
                             </div>
                         </div>
-                    </motion.div>
+                    </Motion.div>
                 </div>
             )}
         </AnimatePresence>,

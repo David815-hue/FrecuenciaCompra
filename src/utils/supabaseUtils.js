@@ -276,6 +276,20 @@ export const parseDatabaseDate = (dateStr) => {
     return null;
 };
 
+export const formatLatestOrderDate = (date) => {
+    if (!date) return '';
+    const rawStr = date.rawStr || '';
+    const hasTime = rawStr ? rawStr.includes(':') : (date.getHours() !== 0 || date.getMinutes() !== 0);
+    const datePart = date.toLocaleDateString('es-HN', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (!hasTime) return `${datePart} 11:59 p. m.`;
+
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
+    hours = hours % 12 || 12;
+    return `${datePart} ${hours}:${String(minutes).padStart(2, '0')} ${ampm}`;
+};
+
 /**
  * Get the latest order date from Supabase
  */

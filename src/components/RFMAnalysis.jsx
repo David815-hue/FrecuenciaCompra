@@ -92,11 +92,11 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
 
     // Filter customers uniquely by date range and SKU (any purchase within range matching targets, unique customer)
     const filteredCustomersByDate = useMemo(() => {
-        const baseCustomers = (allRfmData && allRfmData.customers)
+        const baseCustomers = ((allRfmData && allRfmData.customers)
             ? allRfmData.customers
             : (rfmData && rfmData.customers)
                 ? rfmData.customers
-                : [];
+                : []).filter(customer => !customer.isContactSuppressed);
         if (baseCustomers.length === 0) return [];
 
         let start, end;
@@ -128,6 +128,8 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
 
         return baseCustomers.filter(customer => {
             if (!customer.orders) return false;
+            const suppressedSkus = (customer.contactSuppressedSkus || []).map(sku => String(sku).toUpperCase());
+            if (targets.some(target => suppressedSkus.includes(target))) return false;
             return customer.orders.some(order => {
                 const orderDate = new Date(order.orderDate);
                 if (isNaN(orderDate.getTime())) return false;
@@ -163,7 +165,12 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
     };
 
     const exportCustomersToExcel = (customersToExport, sheetName, fileName) => {
-        const exportData = customersToExport.map(c => ({
+        const searchTerms = searchQuery.split(/[\n,;\t]+/).map(term => term.trim().toUpperCase()).filter(Boolean);
+        const exportData = customersToExport.filter(c => {
+            if (c.isContactSuppressed) return false;
+            const suppressedSkus = (c.contactSuppressedSkus || []).map(sku => String(sku).toUpperCase());
+            return !searchTerms.some(term => suppressedSkus.includes(term));
+        }).map(c => ({
             'Nombre': c.name,
             'Email': c.email || '',
             'Telefono': c.phone || '',
@@ -397,6 +404,7 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
 
     const customDbCustomers = useMemo(() => {
         return (rfmData?.customers || []).filter((customer) => {
+            if (customer.isContactSuppressed) return false;
             const { rfm } = customer;
 
             if (customDbFilters.onlyRecurring && rfm.frequency < 2) return false;

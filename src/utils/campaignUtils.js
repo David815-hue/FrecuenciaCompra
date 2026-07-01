@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase';
+import { filterContactableCustomers, getContactSuppressions } from './contactSuppressionUtils';
 
 /**
  * Creates a new campaign in Supabase.
@@ -137,7 +138,7 @@ export const updateCampaignScript = async (campaignId, script) => {
  * @param {Array} gestoras - Array of gestora user objects
  * @returns {Promise<{success: boolean, count?: number, error?: string}>}
  */
-export const assignClients = async (campaignId, clients, gestoras) => {
+export const assignClients = async (campaignId, clients, gestoras, targetSkus = []) => {
     try {
         if (!clients || clients.length === 0) {
             throw new Error('No hay clientes para asignar');
@@ -146,10 +147,18 @@ export const assignClients = async (campaignId, clients, gestoras) => {
             throw new Error('No hay gestoras seleccionadas');
         }
 
-        console.log(`Distributing ${clients.length} clients among ${gestoras.length} gestoras...`);
+        // Final safety check: every campaign source (filters, AI or Excel) passes here.
+        const activeSuppressions = await getContactSuppressions();
+        const contactableClients = filterContactableCustomers(clients, activeSuppressions, targetSkus);
+        const suppressedCount = clients.length - contactableClients.length;
+        if (contactableClients.length === 0) {
+            throw new Error('Todos los clientes seleccionados están en la lista No contactar.');
+        }
+
+        console.log(`Distributing ${contactableClients.length} clients among ${gestoras.length} gestoras (${suppressedCount} excluded)...`);
 
         // 1. Shuffle clients (Fisher-Yates)
-        const shuffledClients = [...clients];
+        const shuffledClients = [...contactableClients];
         for (let i = shuffledClients.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffledClients[i], shuffledClients[j]] = [shuffledClients[j], shuffledClients[i]];
@@ -224,7 +233,7 @@ export const assignClients = async (campaignId, clients, gestoras) => {
             .eq('id', campaignId);
 
         console.log(`🎉 Successfully assigned ${insertedCount} clients to ${gestoras.length} gestoras.`);
-        return { success: true, count: insertedCount };
+        return { success: true, count: insertedCount, insertedCount, suppressedCount };
     } catch (error) {
         console.error('❌ assignClients: Error:', error);
         return { success: false, error: error.message };
@@ -365,6 +374,7 @@ export const getCampaignStats = async (campaignId) => {
             not_interested: 0,
             callback: 0,
             unreachable: 0,
+            do_not_contact: 0,
             closed: 0,
             total_attempts: 0,
             byGestora: {}
@@ -396,6 +406,7 @@ export const getCampaignStats = async (campaignId) => {
                     not_interested: 0,
                     callback: 0,
                     unreachable: 0,
+                    do_not_contact: 0,
                     closed: 0,
                     attempts: 0
                 };
@@ -453,4 +464,3 @@ export const deleteCampaign = async (campaignId) => {
         return { success: false, error: error.message };
     }
 };
-

@@ -178,6 +178,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                     phone: order.phone || '',
                     identity: order.identity || '',
                     city: order.city || '',
+                    isContactSuppressed: order.isContactSuppressed === true,
                     orders: [],
                     totalSpent: 0,
                     lastPurchase: null
@@ -356,7 +357,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         if (!searchedCustomers.length) return;
 
         // Flatten data for export
-        const exportData = searchedCustomers.map(c => ({
+        const exportData = searchedCustomers.filter(c => !c.isContactSuppressed).map(c => ({
             'Cliente': c.name,
             'Identidad': c.identity,
             'Email': c.email,

@@ -817,9 +817,18 @@ const CampaignWizard = ({ isOpen, onClose, customersData = [], currentUser, onCa
             const campaignId = createRes.data.id;
 
             // 2. Distribute and assign clients
-            const assignRes = await assignClients(campaignId, selectedClients, selectedGestoras);
+            const assignRes = await assignClients(
+                campaignId,
+                selectedClients,
+                selectedGestoras,
+                sourceType === 'filter' ? selectedProducts.map(product => product.sku) : []
+            );
             if (!assignRes.success) {
                 throw new Error(assignRes.error || 'Error al asignar los clientes.');
+            }
+
+            if (assignRes.suppressedCount > 0) {
+                alert(`Campaña creada. Se omitieron ${assignRes.suppressedCount} clientes de la lista No contactar.`);
             }
 
             // Success callback

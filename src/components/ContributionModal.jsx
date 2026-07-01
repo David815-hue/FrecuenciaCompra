@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, TrendingUp, ShoppingBag, DollarSign, Calendar, Package, Layers, Download, Ban, ShieldCheck, Loader2 } from 'lucide-react';
+import { X, TrendingUp, ShoppingBag, DollarSign, Calendar, Package, Layers, Download, Ban, ShieldCheck, Loader2, RotateCcw } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import ContributionGraph from './ContributionGraph';
 import { format, getMonth, getYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
-import { suppressContact } from '../utils/contactSuppressionUtils';
+import { getContactSuppressions, normalizePhone, reactivateContact, suppressContact } from '../utils/contactSuppressionUtils';
 
 const ContributionModal = ({ isOpen, onClose, customerName, customerPhone, orders, searchQuery = '', suppressedSkus = [], currentUser, onContactSuppressed }) => {
     // Tab state: 'all' or 'sku'
@@ -109,8 +109,32 @@ const ContributionModal = ({ isOpen, onClose, customerName, customerPhone, order
         }
     };
 
+    const handleUndoSuppression = async () => {
+        if (!window.confirm(`¿Deshacer “No contactar” para el SKU ${selectedSuppressionSku}?`)) return;
+        setIsSuppressing(true);
+        try {
+            const records = await getContactSuppressions({ includeInactive: true });
+            const record = records.find(item =>
+                item.active !== false
+                && normalizePhone(item.normalizedPhone || item.phone) === normalizePhone(resolvedPhone)
+                && String(item.sku || '').toUpperCase() === selectedSuppressionSku.toUpperCase()
+            );
+            if (!record) throw new Error('No se encontró la exclusión activa para este SKU.');
+            await reactivateContact(record, currentUser);
+            setSuppressedSkuList(previous => previous.filter(sku => sku !== selectedSuppressionSku));
+            onContactSuppressed?.(selectedSuppressionSku, { reactivated: true });
+            setSelectedSuppressionSku('');
+            setShowSuppressionForm(false);
+        } catch (error) {
+            alert(`No se pudo deshacer la exclusión: ${error.message}`);
+        } finally {
+            setIsSuppressing(false);
+        }
+    };
+
     // Get the orders to display based on active tab
     const displayOrders = activeTab === 'all' ? orders : skuFilteredOrders;
+    const selectedSkuIsSuppressed = suppressedSkuList.includes(selectedSuppressionSku);
 
     // Calculate stats
     const stats = useMemo(() => {
@@ -262,10 +286,10 @@ const ContributionModal = ({ isOpen, onClose, customerName, customerPhone, order
                                         {products.filter(product => product.sku).map(product => {
                                             const alreadySuppressed = suppressedSkuList.includes(product.sku);
                                             const selected = selectedSuppressionSku === product.sku;
-                                            return <button key={product.sku} type="button" disabled={alreadySuppressed} onClick={() => setSelectedSuppressionSku(product.sku)} className={`rounded-lg border px-2.5 py-2 text-left text-[10px] font-semibold transition ${alreadySuppressed ? 'cursor-not-allowed border-rose-200 bg-rose-100 text-rose-500 opacity-70 dark:border-rose-900/60 dark:bg-rose-950/40' : selected ? 'border-rose-500 bg-rose-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}><span className={`mr-1.5 font-mono ${selected ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`}>{product.sku}</span>{product.name}{alreadySuppressed && <span className="ml-1">· marcado</span>}</button>;
+                                            return <button key={product.sku} type="button" onClick={() => setSelectedSuppressionSku(product.sku)} className={`rounded-lg border px-2.5 py-2 text-left text-[10px] font-semibold transition ${selected ? 'border-rose-600 bg-rose-600 text-white shadow-sm' : alreadySuppressed ? 'border-rose-200 bg-rose-100 text-rose-600 hover:border-rose-400 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300' : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}><span className={`mr-1.5 font-mono ${selected ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`}>{product.sku}</span>{product.name}{alreadySuppressed && <span className="ml-1">· marcado</span>}</button>;
                                         })}
                                     </div>
-                                    <div className="mt-3 flex justify-end"><button onClick={handleSuppressContact} disabled={isSuppressing || !resolvedPhone || !selectedSuppressionSku || suppressedSkuList.includes(selectedSuppressionSku)} className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">{isSuppressing ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />} No contactar por este SKU</button></div>
+                                    <div className="mt-3 flex justify-end">{selectedSkuIsSuppressed ? <button onClick={handleUndoSuppression} disabled={isSuppressing || currentUser?.role !== 'admin'} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50" title={currentUser?.role !== 'admin' ? 'Solo un administrador puede deshacer la exclusión' : ''}>{isSuppressing ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Deshacer para este SKU</button> : <button onClick={handleSuppressContact} disabled={isSuppressing || !resolvedPhone || !selectedSuppressionSku} className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">{isSuppressing ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />} No contactar por este SKU</button>}</div>
                                     {!resolvedPhone && <p className="mt-2 text-right text-xs font-semibold text-rose-600">Este cliente no tiene teléfono registrado.</p>}
                                 </Motion.div>
                             )}

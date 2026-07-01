@@ -157,12 +157,12 @@ const ContactSuppressionPanel = ({ currentUser, customersData = [], onSuppressio
     };
 
     const handleReactivate = async (record) => {
-        if (!window.confirm(`¿Reactivar a ${record.customerName || record.phone}? Podrá incluirse en nuevas bases y campañas.`)) return;
+        if (!window.confirm(`¿Deshacer “No contactar” para el SKU ${record.sku || 'seleccionado'} de ${record.customerName || record.phone}?`)) return;
         setError('');
         setSuccess('');
         try {
             await reactivateContact(record, currentUser);
-            setSuccess('Cliente reactivado para futuros contactos.');
+            setSuccess(`Exclusión deshecha. El SKU ${record.sku || ''} vuelve a estar disponible para contacto.`);
             await loadRecords();
             onSuppressionsChanged?.();
         } catch (err) {
@@ -238,7 +238,7 @@ const ContactSuppressionPanel = ({ currentUser, customersData = [], onSuppressio
                     ) : managedRecords.length === 0 ? (
                         <div className="py-16 text-center"><CheckCircle2 size={34} className="mx-auto text-emerald-500" /><p className="mt-3 font-bold text-slate-700 dark:text-slate-200">{mode === 'history' ? 'No hay clientes reactivados' : 'No hay clientes marcados'}</p><p className="mt-1 text-sm text-slate-500">{query ? 'No hay coincidencias para esta búsqueda.' : 'Los cambios aparecerán aquí con su contexto de compra.'}</p></div>
                     ) : (
-                        <div className="mt-5 divide-y divide-slate-100 dark:divide-slate-800">{managedRecords.map(record => <article key={record.storeKey} className="grid gap-4 py-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_auto] lg:items-center"><div><p className="font-bold text-slate-900 dark:text-white">{record.customerName || 'Sin nombre'}</p><p className="mt-1 flex items-center gap-1 text-xs text-slate-500"><Phone size={12} />{record.phone || record.normalizedPhone}</p></div><ProductChips products={record.products} query={query} /><div><p className="text-xs font-bold text-slate-700 dark:text-slate-300">SKU {record.sku || 'Todos'}</p><p className="mt-1 text-[10px] text-slate-400">{new Date(record.updatedAt || record.createdAt).toLocaleString('es-HN')} · {record.updatedBy?.name || record.createdBy?.name || 'Usuario'}</p></div>{record.active !== false ? <span className="inline-flex w-fit items-center gap-1 rounded-full bg-rose-100 px-3 py-1.5 text-[10px] font-bold uppercase text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"><Ban size={12} /> No contactar</span> : <button onClick={() => handleReactivate(record)} className="flex w-fit items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-500/10"><RotateCcw size={14} /> Reactivar</button>}</article>)}</div>
+                        <div className="mt-5 divide-y divide-slate-100 dark:divide-slate-800">{managedRecords.map(record => <article key={record.storeKey} className="grid gap-4 py-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_auto] lg:items-center"><div><p className="font-bold text-slate-900 dark:text-white">{record.customerName || 'Sin nombre'}</p><p className="mt-1 flex items-center gap-1 text-xs text-slate-500"><Phone size={12} />{record.phone || record.normalizedPhone}</p></div><ProductChips products={record.products} query={query} /><div><p className="text-xs font-bold text-slate-700 dark:text-slate-300">SKU {record.sku || 'Todos'}</p><p className="mt-1 text-[10px] text-slate-400">{new Date(record.updatedAt || record.createdAt).toLocaleString('es-HN')} · {record.updatedBy?.name || record.createdBy?.name || 'Usuario'}</p></div>{record.active !== false ? <div className="flex items-center gap-2"><span className="inline-flex w-fit items-center gap-1 rounded-full bg-rose-100 px-3 py-1.5 text-[10px] font-bold uppercase text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"><Ban size={12} /> No contactar</span><button onClick={() => handleReactivate(record)} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-indigo-400" title="Quitar esta exclusión"><RotateCcw size={14} /> Deshacer</button></div> : <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400"><CheckCircle2 size={12} /> Reactivado</span>}</article>)}</div>
                     )}
                 </div>
             </section>

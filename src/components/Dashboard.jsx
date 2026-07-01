@@ -1336,10 +1336,12 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             isContactSuppressed={selectedCustomer?.isContactSuppressed === true}
                             suppressedSkus={selectedCustomer?.contactSuppressedSkus || []}
                             currentUser={currentUser}
-                            onContactSuppressed={(sku) => {
+                            onContactSuppressed={(sku, options = {}) => {
                                 setSelectedCustomer(previous => previous ? {
                                     ...previous,
-                                    contactSuppressedSkus: Array.from(new Set([...(previous.contactSuppressedSkus || []), sku]))
+                                    contactSuppressedSkus: options.reactivated
+                                        ? (previous.contactSuppressedSkus || []).filter(item => item !== sku)
+                                        : Array.from(new Set([...(previous.contactSuppressedSkus || []), sku]))
                                 } : previous);
                                 onContactSuppressed?.();
                             }}

@@ -1,16 +1,24 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { performRFMAnalysis, getSegmentInfo } from '../utils/rfmAnalysis';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid } from 'recharts';
-import { Users, TrendingUp, Target, DollarSign, Download, Filter, X, Maximize2, Info } from 'lucide-react';
+import { Users, TrendingUp, Target, DollarSign, Download, Filter, X, Maximize2, Info, FileSpreadsheet, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { crossCustomersWithSimla } from '../utils/simlaExportUtils';
+
+const getSegmentLabel = (segment) => getSegmentInfo(segment).name;
 
 const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
     const [selectedSegments, setSelectedSegments] = useState([]);
     const [fullscreenChart, setFullscreenChart] = useState(null); // 'pie' or 'scatter'
+    const [showExceptChampionsOptions, setShowExceptChampionsOptions] = useState(false);
+    const [simlaProcessing, setSimlaProcessing] = useState(false);
+    const [simlaResult, setSimlaResult] = useState(null);
+    const [simlaError, setSimlaError] = useState('');
+    const simlaFileInputRef = useRef(null);
     const [showCustomDbModal, setShowCustomDbModal] = useState(false);
     const [customDbSelectedSegments, setCustomDbSelectedSegments] = useState([]);
     const [customDbFilters, setCustomDbFilters] = useState({
@@ -164,13 +172,17 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
         }
     };
 
-    const exportCustomersToExcel = (customersToExport, sheetName, fileName) => {
+    const filterCustomersForExport = (customersToExport) => {
         const searchTerms = searchQuery.split(/[\n,;\t]+/).map(term => term.trim().toUpperCase()).filter(Boolean);
-        const exportData = customersToExport.filter(c => {
+        return customersToExport.filter(c => {
             if (c.isContactSuppressed) return false;
             const suppressedSkus = (c.contactSuppressedSkus || []).map(sku => String(sku).toUpperCase());
             return !searchTerms.some(term => suppressedSkus.includes(term));
-        }).map(c => ({
+        });
+    };
+
+    const exportCustomersToExcel = (customersToExport, sheetName, fileName) => {
+        const exportData = filterCustomersForExport(customersToExport).map(c => ({
             'Nombre': c.name,
             'Email': c.email || '',
             'Telefono': c.phone || '',
@@ -183,7 +195,7 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
             'Score F': c.rfm.frequencyScore,
             'Score M': c.rfm.monetaryScore,
             'Score Total': c.rfm.totalScore,
-            'Segmento': c.rfm.segment
+            'Segmento': getSegmentLabel(c.rfm.segment)
         }));
 
         const ws = XLSX.utils.json_to_sheet(exportData);
@@ -194,11 +206,70 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
 
     const handleExportSegment = (segment) => {
         const segmentCustomers = rfmData.stats[segment].customers;
+        const segmentLabel = getSegmentLabel(segment);
         exportCustomersToExcel(
             segmentCustomers,
-            segment,
-            `RFM_${segment}_${new Date().toISOString().split('T')[0]}.xlsx`
+            segmentLabel,
+            `RFM_${segmentLabel.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`
         );
+    };
+
+    const getCustomersExceptChampions = () => {
+        const customersExceptChampions = [];
+        Object.entries(rfmData?.stats || {}).forEach(([segment, segmentData]) => {
+            if (segment !== 'Champions') customersExceptChampions.push(...segmentData.customers);
+        });
+        return customersExceptChampions;
+    };
+
+    const downloadExceptChampions = () => {
+        exportCustomersToExcel(
+            getCustomersExceptChampions(),
+            'Sin Campeones',
+            `RFM_Sin_Campeones_${new Date().toISOString().split('T')[0]}.xlsx`
+        );
+        setShowExceptChampionsOptions(false);
+    };
+
+    const handleSimlaFile = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        setSimlaProcessing(true);
+        setSimlaError('');
+        setSimlaResult(null);
+
+        try {
+            const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const simlaRows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+            if (simlaRows.length === 0) throw new Error('El archivo de Clientes de SIMLA está vacío.');
+
+            const result = crossCustomersWithSimla(
+                filterCustomersForExport(getCustomersExceptChampions()),
+                simlaRows,
+                getSegmentLabel
+            );
+
+            const outputSheet = XLSX.utils.json_to_sheet(result.rows);
+            outputSheet['!cols'] = [
+                { wch: 28 }, { wch: 22 }, { wch: 16 },
+                { wch: 38 }, { wch: 22 }, { wch: 30 }
+            ];
+            const outputWorkbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, 'Clientes para SIMLA');
+            XLSX.writeFile(
+                outputWorkbook,
+                `RFM_Sin_Campeones_SIMLA_${new Date().toISOString().split('T')[0]}.xlsx`
+            );
+            setSimlaResult(result.summary);
+        } catch (error) {
+            console.error('Error crossing RFM with SIMLA:', error);
+            setSimlaError(error.message || 'No se pudo procesar el archivo de SIMLA.');
+        } finally {
+            setSimlaProcessing(false);
+        }
     };
 
     const handleExportByDateRange = () => {
@@ -308,7 +379,7 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
             row['Recencia Total (dias)'] = c.rfm.recency;
             row['Frecuencia Total (pedidos)'] = c.rfm.frequency;
             row['Monetario Total (L.)'] = c.rfm.monetary;
-            row['Segmento RFM General'] = c.rfm.segment;
+            row['Segmento RFM General'] = getSegmentLabel(c.rfm.segment);
 
             return row;
         });
@@ -784,25 +855,69 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
                     <Filter size={14} />
                     Crear tu propia BD
                 </button>
-                <button
-                    onClick={() => {
-                        const allExceptChampions = [];
-                        Object.entries(rfmData?.stats || {}).forEach(([segment, data]) => {
-                            if (segment !== 'Champions') {
-                                allExceptChampions.push(...data.customers);
-                            }
-                        });
+                <div className="relative">
+                    <button
+                        onClick={() => {
+                            setShowExceptChampionsOptions(prev => !prev);
+                            setSimlaError('');
+                        }}
+                        className="flex items-center gap-1 text-sm font-medium text-emerald-600 transition-colors hover:text-emerald-700 dark:text-emerald-500 dark:hover:text-emerald-400"
+                        aria-expanded={showExceptChampionsOptions}
+                    >
+                        <Download size={14} />
+                        Descargar BD (Excepto Campeones)
+                    </button>
 
-                        exportCustomersToExcel(
-                            allExceptChampions,
-                            'Sin Campeones',
-                            `RFM_Sin_Campeones_${new Date().toISOString().split('T')[0]}.xlsx`
-                        );
-                    }}
-                    className="text-emerald-600 dark:text-emerald-500 text-sm font-medium hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors flex items-center gap-1"
-                >
-                    Descargar BD (Excepto Campeones)
-                </button>
+                    {showExceptChampionsOptions && (
+                        <div className="absolute bottom-full right-0 z-50 mb-2 w-[min(300px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                            <button
+                                onClick={downloadExceptChampions}
+                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
+                            >
+                                <Download size={16} className="shrink-0 text-slate-400" />
+                                <span className="min-w-0">
+                                    <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">Descargar Excel</span>
+                                    <span className="block text-[11px] text-slate-500 dark:text-slate-400">Sin cruzar con SIMLA</span>
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => simlaFileInputRef.current?.click()}
+                                disabled={simlaProcessing}
+                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 dark:hover:bg-slate-800"
+                            >
+                                {simlaProcessing
+                                    ? <Upload size={16} className="shrink-0 animate-pulse text-slate-500" />
+                                    : <FileSpreadsheet size={16} className="shrink-0 text-slate-500" />}
+                                <span className="min-w-0">
+                                    <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">Cruzar con SIMLA</span>
+                                    <span className="block text-[11px] text-slate-500 dark:text-slate-400">Elegir archivo de clientes</span>
+                                </span>
+                            </button>
+                            <input
+                                ref={simlaFileInputRef}
+                                type="file"
+                                accept=".xlsx,.xls,.csv"
+                                onChange={handleSimlaFile}
+                                className="hidden"
+                                aria-label="Seleccionar archivo Clientes de SIMLA"
+                            />
+
+                            {simlaResult && (
+                                <div className="flex gap-2 border-t border-slate-100 px-3 py-2.5 text-[11px] leading-4 text-emerald-700 dark:border-slate-800 dark:text-emerald-300">
+                                    <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                                    <p>{simlaResult.matched} encontrados · {simlaResult.unmatched} sin coincidencia</p>
+                                </div>
+                            )}
+
+                            {simlaError && (
+                                <div className="flex gap-2 border-t border-slate-100 px-3 py-2.5 text-[11px] leading-4 text-rose-700 dark:border-slate-800 dark:text-rose-300">
+                                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                                    <p>{simlaError}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
                 <button
                     onClick={() => setShowMonthsModal(true)}
                     className="text-blue-600 dark:text-blue-400 text-sm font-medium hover:text-blue-700 dark:hover:text-blue-300 transition-colors flex items-center gap-1"

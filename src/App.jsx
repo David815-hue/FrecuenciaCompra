@@ -9,12 +9,13 @@ import AIChatWidget from './components/AIChatWidget';
 import CampaignManager from './components/CampaignManager';
 import GestoraCallView from './components/GestoraCallView';
 import ContactSuppressionPanel from './components/ContactSuppressionPanel';
+import QuickSyncControl from './components/QuickSyncControl';
 import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets, filterDataByDate } from './utils/dataProcessing';
 import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, formatLatestOrderDate, getLatestOrderDate } from './utils/supabaseUtils';
 import { getCurrentUser, onAuthStateChange, logout } from './utils/authUtils';
 import { runAutomaticSync } from './utils/albatrossService';
-import { Cloud, CloudOff, RefreshCw, Trash2, LogOut, User, Shield, Sparkles, Ban } from 'lucide-react';
+import { LogOut, User, Shield, Sparkles, Ban } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from './config/supabase';
 import { decorateWithSuppressionStatus, filterContactableCustomers, getContactSuppressions } from './utils/contactSuppressionUtils';
@@ -38,6 +39,15 @@ function App() {
   const [pendingCallsCount, setPendingCallsCount] = useState(0);
   const [latestOrderDate, setLatestOrderDate] = useState(null);
   const [contactSuppressions, setContactSuppressions] = useState([]);
+  const [quickSyncState, setQuickSyncState] = useState({
+    status: 'idle',
+    step: 0,
+    text: '',
+    startDate: '',
+    endDate: '',
+    count: undefined,
+    error: ''
+  });
   const [syncStatus, setSyncStatus] = useState({
     lastSync: null,
     isLoading: false,
@@ -101,8 +111,11 @@ function App() {
     }
   }, [authState.user, authState.profile]);
 
-  const loadFromCloud = async () => {
-    setSyncStatus(prev => ({ ...prev, isLoading: true, error: null }));
+  const loadFromCloud = async (options = {}) => {
+    const showLoading = options?.showLoading !== false;
+    if (showLoading) {
+      setSyncStatus(prev => ({ ...prev, isLoading: true, error: null }));
+    }
     try {
       const [result, latestDate] = await Promise.all([
         loadCustomersFromFirestore(),
@@ -174,34 +187,6 @@ function App() {
         ...prev,
         error: error.message
       }));
-    }
-  };
-
-  const handleClearCloud = async () => {
-    if (!confirm('¿Estás seguro de que quieres eliminar TODOS los datos de la nube? Esta acción no se puede deshacer.')) {
-      return;
-    }
-
-    setSyncStatus(prev => ({ ...prev, isLoading: true }));
-    try {
-      const result = await clearAllData();
-      if (result.success) {
-        setData(null);
-        setSyncStatus({
-          lastSync: null,
-          isLoading: false,
-          error: null
-        });
-        alert(`Eliminados ${result.deletedCount} registros correctamente.`);
-      }
-    } catch (error) {
-      console.error('Error clearing cloud data:', error);
-      setSyncStatus(prev => ({
-        ...prev,
-        isLoading: false,
-        error: error.message
-      }));
-      alert('Error al eliminar datos: ' + error.message);
     }
   };
 
@@ -284,6 +269,82 @@ function App() {
     } catch (error) {
       console.error("Error in automatic sync:", error);
       throw error;
+    }
+  };
+
+  const toLocalISODate = (value) => {
+    const date = new Date(value);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleQuickSync = async () => {
+    if (quickSyncState.status === 'running') return;
+
+    const yesterday = new Date();
+    yesterday.setHours(0, 0, 0, 0);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    try {
+      const storedLatestDate = latestOrderDate || await getLatestOrderDate();
+      const latest = storedLatestDate ? new Date(storedLatestDate) : null;
+      if (latest) latest.setHours(0, 0, 0, 0);
+
+      const fallbackStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), 1);
+      const startDate = toLocalISODate(latest || fallbackStart);
+      const endDate = toLocalISODate(yesterday);
+
+      if (latest && latest >= yesterday) {
+        setQuickSyncState({
+          status: 'up_to_date',
+          step: 7,
+          text: `El ultimo pedido registrado es del ${formatLatestOrderDate(storedLatestDate)}.`,
+          startDate,
+          endDate,
+          count: 0,
+          error: ''
+        });
+        return;
+      }
+
+      setQuickSyncState({
+        status: 'running',
+        step: 1,
+        text: 'Preparando la actualizacion automatica...',
+        startDate,
+        endDate,
+        count: undefined,
+        error: ''
+      });
+
+      const result = await runAutomaticSync({
+        startDate,
+        endDate,
+        isIncremental: true,
+        onProgress: ({ step, text }) => {
+          setQuickSyncState(prev => ({ ...prev, status: 'running', step, text }));
+        }
+      });
+
+      await loadFromCloud({ showLoading: false });
+      setQuickSyncState(prev => ({
+        ...prev,
+        status: 'success',
+        step: 7,
+        text: 'Actualizacion completada hasta ayer.',
+        count: result.count,
+        error: ''
+      }));
+    } catch (error) {
+      console.error('Error in quick automatic sync:', error);
+      setQuickSyncState(prev => ({
+        ...prev,
+        status: 'error',
+        text: error.message || 'No se pudo completar la actualizacion.',
+        error: error.message || 'Error desconocido'
+      }));
     }
   };
 
@@ -444,52 +505,24 @@ function App() {
 
 
           {/* Right side - Controls */}
-          <div className="flex items-center gap-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/50 dark:border-slate-800 shadow-sm px-2 py-1.5 pr-4 rounded-full pointer-events-auto transition-colors duration-500">
+          <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/50 dark:border-slate-800 shadow-sm px-2 py-1.5 rounded-full pointer-events-auto transition-colors duration-500">
             {/* Theme Toggle */}
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
 
             {/* Sync Status */}
             {isAdmin && (
               <>
-                <div className="flex items-center gap-2 px-3 border-l border-r border-slate-200/60 dark:border-slate-700/60">
-                  {syncStatus.lastSync ? (
-                    <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
-                      <Cloud size={12} strokeWidth={3} />
-                      <span>Sincronizado</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
-                      <CloudOff size={12} strokeWidth={3} />
-                      <span>Offline</span>
-                    </div>
-                  )}
-
-                  {formattedLastOrderDate && (
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                      Ult. pedido {formattedLastOrderDate}
-                    </span>
-                  )}
+                <div className="flex items-center gap-2 border-l border-slate-200/60 px-3 dark:border-slate-700/60">
+                  <span
+                    className={`h-2 w-2 rounded-full ${syncStatus.lastSync ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    aria-hidden="true"
+                  />
+                  <span className="whitespace-nowrap text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                    {formattedLastOrderDate ? `Datos al ${formattedLastOrderDate}` : 'Sin datos sincronizados'}
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={loadFromCloud}
-                    className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-                    title="Recargar desde la nube"
-                  >
-                    <RefreshCw size={14} />
-                  </button>
-
-                  {data && (
-                    <button
-                      onClick={handleClearCloud}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-full transition-colors"
-                      title="Eliminar datos"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
+                <QuickSyncControl state={quickSyncState} onStart={handleQuickSync} />
               </>
             )}
 

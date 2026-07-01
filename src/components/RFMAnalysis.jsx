@@ -83,9 +83,9 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
 
     // Perform overall RFM Analysis for the unfiltered cohort (for database downloads by period/SKU)
     const allRfmData = useMemo(() => {
-        if (!allCustomers || allCustomers.length === 0) return null;
+        if (!showMonthsModal || !allCustomers || allCustomers.length === 0) return null;
         return performRFMAnalysis(allCustomers, new Date(), '');
-    }, [allCustomers]);
+    }, [allCustomers, showMonthsModal]);
 
     // Computed range dates when months count filter is active
     const computedMonthsRange = useMemo(() => {
@@ -100,6 +100,7 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
 
     // Filter customers uniquely by date range and SKU (any purchase within range matching targets, unique customer)
     const filteredCustomersByDate = useMemo(() => {
+        if (!showMonthsModal) return [];
         const baseCustomers = ((allRfmData && allRfmData.customers)
             ? allRfmData.customers
             : (rfmData && rfmData.customers)
@@ -155,7 +156,7 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
                 return true;
             });
         });
-    }, [allRfmData, rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate, skuFilterType, skuSingle, skuListText, searchQuery]);
+    }, [showMonthsModal, allRfmData, rfmData, monthsFilterType, monthsCount, monthsStartDate, monthsEndDate, skuFilterType, skuSingle, skuListText, searchQuery]);
 
     // Filter customers by selected segments
     const filteredCustomers = useMemo(() => {
@@ -404,7 +405,7 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
     };
 
     // Prepare data for charts
-    const pieData = Object.entries(rfmData?.stats || {})
+    const pieData = useMemo(() => Object.entries(rfmData?.stats || {})
         .map(([segment, data]) => ({
             name: data.info.name,
             originalSegment: segment,
@@ -412,9 +413,9 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
             percentage: data.percentage,
             info: data.info
         }))
-        .sort((a, b) => a.info.priority - b.info.priority);
+        .sort((a, b) => a.info.priority - b.info.priority), [rfmData]);
 
-    const scatterData = filteredCustomers.map(c => {
+    const scatterData = useMemo(() => filteredCustomers.map(c => {
         const lastPurchaseDate = c.orders.reduce((latest, order) => {
             const orderDate = new Date(order.orderDate);
             return orderDate > latest ? orderDate : latest;
@@ -431,11 +432,17 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
             monetaryScore: c.rfm.monetaryScore,
             info: getSegmentInfo(c.rfm.segment)
         };
-    });
+    }), [filteredCustomers]);
 
-    const availableSegments = Object.entries(rfmData?.stats || {})
+    const scatterBySegment = useMemo(() => scatterData.reduce((groups, point) => {
+        if (!groups[point.segment]) groups[point.segment] = [];
+        groups[point.segment].push(point);
+        return groups;
+    }, {}), [scatterData]);
+
+    const availableSegments = useMemo(() => Object.entries(rfmData?.stats || {})
         .sort(([, a], [, b]) => a.info.priority - b.info.priority)
-        .map(([segment]) => segment);
+        .map(([segment]) => segment), [rfmData]);
 
     const matchesRange = (value, min, max) => {
         if (min !== '' && value < Number(min)) return false;
@@ -731,12 +738,13 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
                             <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                             {Object.keys(rfmData.stats).map((segment) => {
                                 const segmentInfo = getSegmentInfo(segment);
-                                const data = scatterData.filter(d => d.segment === segment);
+                                const data = scatterBySegment[segment] || [];
                                 return (
                                     <Scatter
                                         key={segment}
                                         name={segment}
                                         data={data}
+                                        isAnimationActive={false}
                                         fill={segmentInfo.color}
                                         fillOpacity={0.7}
                                         stroke="#fff"
@@ -1482,12 +1490,13 @@ const RFMAnalysis = ({ customers, allCustomers = [], searchQuery = '' }) => {
                                                 <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                                                 {Object.keys(rfmData.stats).map((segment) => {
                                                     const segmentInfo = getSegmentInfo(segment);
-                                                    const data = scatterData.filter(d => d.segment === segment);
+                                                    const data = scatterBySegment[segment] || [];
                                                     return (
                                                         <Scatter
                                                             key={segment}
                                                             name={segmentInfo.name}
                                                             data={data}
+                                                            isAnimationActive={false}
                                                             fill={segmentInfo.color}
                                                             fillOpacity={0.7}
                                                             stroke="#fff"

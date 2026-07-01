@@ -221,9 +221,6 @@ export const segmentCustomers = (customers) => {
     // Log uncategorized customers for debugging
     if (uncategorized.length > 0) {
         console.warn('⚠️ Clientes NO catalogados:', uncategorized.length);
-        console.table(uncategorized);
-    } else {
-        console.log('✅ Todos los clientes fueron catalogados correctamente');
     }
 
     return segmented;

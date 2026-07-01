@@ -29,6 +29,7 @@ const getUniqueProducts = (customer) => {
 
 const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = false, currentUser, onContactSuppressed }) => {
     const [query, setQuery] = useState('');
+    const [appliedQuery, setAppliedQuery] = useState('');
     const [onlyRecurring, setOnlyRecurring] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(null);
     const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -75,17 +76,23 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
         return () => clearTimeout(timer);
     }, []);
 
-    // Generate suggestions when query changes
+    // Keep typing responsive by delaying expensive full-dataset searches.
     useEffect(() => {
-        if (query.length >= 2) {
-            const results = getSuggestions(data, query);
+        const timer = window.setTimeout(() => setAppliedQuery(query), 300);
+        return () => window.clearTimeout(timer);
+    }, [query]);
+
+    // Generate suggestions only after the search settles.
+    useEffect(() => {
+        if (appliedQuery.length >= 2) {
+            const results = getSuggestions(data, appliedQuery);
             setSuggestions(results);
             setShowSuggestions(true);
         } else {
             setSuggestions(null);
             setShowSuggestions(false);
         }
-    }, [query, data]);
+    }, [appliedQuery, data]);
 
     // Close suggestions when clicking outside
     useEffect(() => {
@@ -102,6 +109,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     // Handle suggestion click
     const handleSuggestionClick = (suggestionQuery) => {
         setQuery(suggestionQuery);
+        setAppliedQuery(suggestionQuery);
         setShowSuggestions(false);
     };
 
@@ -122,8 +130,8 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
     // 1. Filter Data (Search)
     const filteredData = useMemo(() => {
-        return filterData(data, query);
-    }, [data, query]);
+        return filterData(data, appliedQuery);
+    }, [data, appliedQuery]);
 
     // 2. Group by Customer
     const customers = useMemo(() => {
@@ -216,7 +224,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
     // 3. Apply Filters (City, Quantity, Recurring)
     const displayList = useMemo(() => {
-        if (!query || query.trim().length < 3) {
+        if (!appliedQuery || appliedQuery.trim().length < 3) {
             return [];
         }
 
@@ -290,7 +298,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
         }
 
         return list;
-    }, [customers, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, topSKUs, query, dateRange]);
+    }, [customers, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, topSKUs, appliedQuery, dateRange]);
 
     // 5. Apply Sorting
     const sortedList = useMemo(() => {
@@ -333,7 +341,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, dateRange]);
+    }, [appliedQuery, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, dateRange]);
 
     // 4. Calculate Global Date Range
     const displayDateRange = useMemo(() => {
@@ -364,6 +372,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
     const handleClearAllFilters = () => {
         setQuery('');
+        setAppliedQuery('');
         setOnlyRecurring(false);
         setSelectedCities([]);
         setMinQuantity('');
@@ -377,8 +386,8 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
     // Scan data to find SKU & description for the search tag display
     const searchProductInfo = useMemo(() => {
-        if (!query.trim()) return null;
-        const searchTerm = query.trim().toLowerCase();
+        if (!appliedQuery.trim()) return null;
+        const searchTerm = appliedQuery.trim().toLowerCase();
         for (const order of data) {
             for (const item of (order.items || [])) {
                 const sku = String(item.sku || '').toLowerCase();
@@ -392,18 +401,19 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
             }
         }
         return null;
-    }, [data, query]);
+    }, [data, appliedQuery]);
 
     const activeFilterChips = [];
-    if (query.trim()) {
+    if (appliedQuery.trim()) {
         const labelText = searchProductInfo 
             ? `Busqueda: ${searchProductInfo.sku} - ${searchProductInfo.description}`
-            : `Busqueda: ${query.trim()}`;
+            : `Busqueda: ${appliedQuery.trim()}`;
         activeFilterChips.push({
             key: 'query',
             label: labelText,
             onRemove: () => {
                 setQuery('');
+                setAppliedQuery('');
                 setShowSuggestions(false);
             }
         });
@@ -449,7 +459,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
         if (viewMode === 'gestores' && gestoresRef.current) {
             gestoresRef.current.exportReport();
         } else {
-            exportToExcel(displayList, query);
+            exportToExcel(displayList, appliedQuery);
         }
     };
 
@@ -559,7 +569,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             </span> de Frecuencia
                         </motion.h1>
                         <p className="text-slate-500 dark:text-slate-400 font-medium">
-                            {query.length >= 3 ? (
+                            {appliedQuery.length >= 3 ? (
                                 <motion.span
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
@@ -600,7 +610,10 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                         className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-transparent rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-500/20 focus:border-indigo-200 dark:focus:border-indigo-500/30 transition-all outline-none text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
                                         placeholder="Buscar por SKU, Email, Teléfono..."
                                         value={query}
-                                        onChange={(e) => setQuery(e.target.value)}
+                                        onChange={(e) => {
+                                            setQuery(e.target.value);
+                                            setShowSuggestions(false);
+                                        }}
                                         onFocus={() => query.length >= 2 && setShowSuggestions(true)}
                                     />
 
@@ -840,7 +853,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                 </div>
 
                 {/* Advanced Filters Section */}
-                {viewMode !== 'gestores' && query.length >= 3 && (
+                {viewMode !== 'gestores' && appliedQuery.length >= 3 && (
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -1037,8 +1050,8 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                         {paginatedList.map((customer, idx) => {
                                             // Calculate specific product spent if searching by SKU/description
                                             const specificProductSpent = (() => {
-                                                if (!query.trim()) return 0;
-                                                const terms = query.toLowerCase().split(/[\n,]+/).map(t => t.trim()).filter(Boolean);
+                                                if (!appliedQuery.trim()) return 0;
+                                                const terms = appliedQuery.toLowerCase().split(/[\n,]+/).map(t => t.trim()).filter(Boolean);
                                                 if (terms.length === 0) return 0;
 
                                                 let spent = 0;
@@ -1149,7 +1162,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                             {specificProductSpent > 0 && (
                                                                 <span 
                                                                     className="text-[10px] font-extrabold px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/40 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-md shadow-sm"
-                                                                    title={`Monto gastado en productos que coinciden con "${query}"`}
+                                                                    title={`Monto gastado en productos que coinciden con "${appliedQuery}"`}
                                                                 >
                                                                     L. {specificProductSpent.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} del código
                                                                 </span>
@@ -1191,7 +1204,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                             <Search size={40} className="text-slate-200 dark:text-slate-600" />
                                                         </div>
 
-                                                        {query.length >= 3 ? (
+                                                        {appliedQuery.length >= 3 ? (
                                                             <>
                                                                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No se encontraron resultados</h3>
                                                                 <p className="text-slate-500 dark:text-slate-400">Intenta buscar con otro nombre, SKU o número de teléfono.</p>
@@ -1332,7 +1345,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             customerName={selectedCustomer?.name || ''}
                             customerPhone={selectedCustomer?.phone || ''}
                             orders={selectedCustomer?.orders || []}
-                            searchQuery={query}
+                            searchQuery={appliedQuery}
                             isContactSuppressed={selectedCustomer?.isContactSuppressed === true}
                             suppressedSkus={selectedCustomer?.contactSuppressedSkus || []}
                             currentUser={currentUser}
@@ -1357,7 +1370,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                         className="mb-8"
                     >
-                        <RFMAnalysis customers={displayList} allCustomers={allCustomers} searchQuery={query} />
+                        <RFMAnalysis customers={displayList} allCustomers={allCustomers} searchQuery={appliedQuery} />
                     </motion.div>
                 ) : (
                     /* Gestores Analysis View */

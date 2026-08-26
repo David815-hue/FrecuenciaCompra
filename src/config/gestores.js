@@ -12,10 +12,14 @@ export const GESTORES_MAP = {
     'coreakimberly848@gmail.com': { gestor: 'Kimberly Corea', zona: 'Centro' },
     'marielllandino28@gmail.com': { gestor: 'Alondra Salgado', zona: 'Centro' },
     'f4987740@gmail.com': { gestor: 'Maria Fernanda Amador', zona: 'Centro' },
-    'josselyndanielamartinez@gmail.com': { gestor: 'Daniela Martinez', zona: 'Centro' },
+    'fguzmanv@puntofarma.hn': { gestor: 'Fernando Guzman', zona: 'Centro' },
     'callcentersap1@puntofarma.hn': { gestor: 'Evelyn Maldonado', zona: 'Norte' },
     'callcentersap2@puntofarma.hn': { gestor: 'Paola Melendez', zona: 'Norte' },
     'jsanchez@puntofarma.hn': { gestor: 'Yohana Sanchez', zona: 'Norte' },
+    'callcentersap3@puntofarma.hn': { gestor: 'Pamela Maldonado', zona: 'Norte' },
+
+
+
 };
 
 // Obtener información del gestor por email

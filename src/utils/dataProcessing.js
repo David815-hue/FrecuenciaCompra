@@ -1,5 +1,7 @@
 import * as XLSX from 'xlsx';
-import { getGestorInfo } from '../config/gestores';
+import { getGestorInfo } from '../config/gestores.js';
+import { getPurchaseExportColumns, getPurchaseMonth, orderMatchesProducts } from './purchaseActivity.js';
+import { appendReportFilters, getExportableCustomers } from './excelExport.js';
 
 // Helper to parse Excel file to JSON
 export const parseExcel = (file) => {
@@ -178,9 +180,7 @@ export const filterData = (data, query) => {
         const identity = item.identity ? String(item.identity).toLowerCase() : '';
 
         // SKU check: does this order contain ANY of the terms?
-        const hasSku = item.items && item.items.some(prod =>
-            terms.some(term => prod.sku.toLowerCase().includes(term))
-        );
+        const hasSku = orderMatchesProducts(item, terms);
 
         // If the query looks like an exact SKU list (numbers), we might want strict matching?
         // For now "includes" is generous. 
@@ -214,34 +214,32 @@ export const filterDataByDate = (data, cutoffDate) => {
 };
 
 // Export to Excel with Monthly SKU Breakdown
-export const exportToExcel = (customers, activeQuery) => {
+export const buildFrequencyWorkbook = (customers, activeQuery, options = {}) => {
     // Parse active query to get filtered SKUs
     const terms = activeQuery ? activeQuery.split(/[\n,]+/).map(t => t.trim().toLowerCase()).filter(Boolean) : [];
-    const contactableCustomers = (customers || []).filter(customer => {
-        if (customer.isContactSuppressed) return false;
-        const suppressedSkus = (customer.contactSuppressedSkus || []).map(sku => String(sku).toLowerCase());
-        return !suppressedSkus.some(sku => terms.some(term => term === sku || term.includes(sku)));
-    });
+    const contactableCustomers = getExportableCustomers(customers,
+        options.purchaseFilter?.enabled && options.purchaseFilter.scope === 'product'
+            ? [activeQuery, options.purchaseFilter.productQuery].filter(Boolean).join(',') : activeQuery);
 
     // Step 1: Calculate global date range and identify all unique SKUs in filter
-    let minTime = Infinity;
-    let maxTime = -Infinity;
+    let minMonth = '';
+    let maxMonth = '';
     const skuSet = new Set();
 
     contactableCustomers.forEach(customer => {
         customer.orders.forEach(order => {
-            const d = new Date(order.orderDate);
-            if (!isNaN(d)) {
-                const t = d.getTime();
-                if (t < minTime) minTime = t;
-                if (t > maxTime) maxTime = t;
+            const month = getPurchaseMonth(order.orderDate);
+            if (month) {
+                if (!minMonth || month < minMonth) minMonth = month;
+                if (month > maxMonth) maxMonth = month;
             }
 
             // Collect SKUs that match the filter
-            if (terms.length > 0 && order.items) {
+            if (order.items) {
                 order.items.forEach(item => {
-                    if (terms.some(term => item.sku.toLowerCase().includes(term))) {
-                        skuSet.add(item.sku);
+                    if (item.sku && (terms.length === 0 || terms.some(term => String(item.sku).toLowerCase().includes(term)
+                        || String(item.description || '').toLowerCase().includes(term)))) {
+                        skuSet.add(String(item.sku));
                     }
                 });
             }
@@ -249,26 +247,23 @@ export const exportToExcel = (customers, activeQuery) => {
     });
 
     // If no date range found, use current month
-    if (minTime === Infinity) {
-        const now = new Date();
-        minTime = now.getTime();
-        maxTime = now.getTime();
+    if (!minMonth) {
+        minMonth = getPurchaseMonth(new Date());
+        maxMonth = minMonth;
     }
 
     // Step 2: Generate list of months
     const months = [];
-    const minDate = new Date(minTime);
-    minDate.setDate(1); // Start of month
-    const maxDate = new Date(maxTime);
-    maxDate.setDate(1);
+    const minDate = new Date(`${minMonth}-01T12:00:00Z`);
+    const maxDate = new Date(`${maxMonth}-01T12:00:00Z`);
 
     let current = new Date(minDate);
     while (current <= maxDate) {
         months.push({
-            key: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`,
-            label: `${current.toLocaleDateString('es-HN', { month: 'short' })} ${String(current.getFullYear()).slice(2)}`
+            key: current.toISOString().slice(0, 7),
+            label: `${current.toLocaleDateString('es-HN', { month: 'short', timeZone: 'UTC' })} ${String(current.getUTCFullYear()).slice(2)}`
         });
-        current.setMonth(current.getMonth() + 1);
+        current.setUTCMonth(current.getUTCMonth() + 1);
     }
 
     const skus = Array.from(skuSet);
@@ -281,15 +276,14 @@ export const exportToExcel = (customers, activeQuery) => {
         const salesMap = {}; // { "2025-07-SKU123": 5, "2025-08-SKU456": 3 }
 
         customer.orders.forEach(order => {
-            const orderDate = new Date(order.orderDate);
-            if (isNaN(orderDate)) return;
-
-            const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+            const monthKey = getPurchaseMonth(order.orderDate);
+            if (!monthKey) return;
 
             if (order.items) {
                 order.items.forEach(item => {
                     // Only count items that match the filter
-                    if (terms.length === 0 || terms.some(term => item.sku.toLowerCase().includes(term))) {
+                    if (terms.length === 0 || terms.some(term => String(item.sku || '').toLowerCase().includes(term)
+                        || String(item.description || '').toLowerCase().includes(term))) {
                         const key = `${monthKey}-${item.sku}`;
                         salesMap[key] = (salesMap[key] || 0) + (item.quantity || 0);
                     }
@@ -303,7 +297,8 @@ export const exportToExcel = (customers, activeQuery) => {
             'Correo electrónico del cliente': customer.email || '',
             'Celular del cliente': customer.phone || '',
             'Identidad': customer.identity || '',
-            'Total Gastado': customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toFixed(2)
+            'Total Gastado': customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toFixed(2),
+            ...getPurchaseExportColumns(customer, options.purchaseFilter)
         };
 
         // Add dynamic columns for each month-SKU combination
@@ -321,5 +316,11 @@ export const exportToExcel = (customers, activeQuery) => {
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte");
-    XLSX.writeFile(workbook, "Reporte_Frecuencia_SKU.xlsx");
+    appendReportFilters(workbook, options);
+    return workbook;
+};
+
+export const exportToExcel = (customers, activeQuery, options = {}) => {
+    XLSX.writeFile(buildFrequencyWorkbook(customers, activeQuery, options),
+        options.purchaseFilter?.enabled ? 'Reporte_Clientes_Sin_Recompra.xlsx' : 'Reporte_Frecuencia_SKU.xlsx');
 };

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import { Users, TrendingUp, DollarSign, ShoppingBag, ShoppingCart, User, Filter, Search, X, Activity, Phone, Mail, MapPin, Calendar, ChevronDown, ArrowUpDown, Lock, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,8 +9,12 @@ import { getZonas, getGestoresByZona } from '../config/gestores';
 import MonthVisualizer from './MonthVisualizer';
 import ContributionGraph from './ContributionGraph';
 import GlassDatePicker from './GlassDatePicker';
+import PurchaseActivityFilter from './PurchaseActivityFilter';
+import { buildPurchaseHistory, comparisonEndDate, filterCustomersByPurchaseActivity, getCustomerKey, getPurchaseExportColumns, resolvePurchaseFilterForSearch } from '../utils/purchaseActivity';
+import { appendReportFilters, getExportableCustomers } from '../utils/excelExport';
 
-const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null }) => {
+const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null, ref,
+    purchaseFilter, onPurchaseFilterChange, fullPurchaseHistory, lastDataDate, onExportCountChange }) => {
     const [selectedMonthData, setSelectedMonthData] = useState(null);
     const [isZoneLoading, setIsZoneLoading] = useState(false);
 
@@ -22,6 +26,11 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
     const [expandedZones, setExpandedZones] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const searchPurchaseFilter = useMemo(() => resolvePurchaseFilterForSearch(purchaseFilter, data, customerSearchTerm),
+        [purchaseFilter, data, customerSearchTerm]);
+    const comparisonHistory = useMemo(() => searchPurchaseFilter.scope === 'product'
+        ? buildPurchaseHistory(data, searchPurchaseFilter.productQuery) : fullPurchaseHistory,
+        [data, fullPurchaseHistory, searchPurchaseFilter.scope, searchPurchaseFilter.productQuery]);
     const [dateRange, setDateRange] = useState({
         start: '',
         end: ''
@@ -153,10 +162,10 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         }
 
         // Filter by date range
-        if (dateRange.start && dateRange.end) {
-            const start = new Date(dateRange.start);
+        if (!purchaseFilter.enabled && (dateRange.start || dateRange.end)) {
+            const start = new Date(`${dateRange.start || '1900-01-01'}T00:00:00`);
             start.setHours(0, 0, 0, 0);
-            const end = new Date(dateRange.end);
+            const end = new Date(`${dateRange.end || '2999-12-31'}T23:59:59`);
             end.setHours(23, 59, 59, 999);
 
             filtered = filtered.filter(order => {
@@ -168,7 +177,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         // Group by customer
         const map = {};
         filtered.forEach(order => {
-            const key = order.email || order.phone || order.name;
+            const key = getCustomerKey(order);
             if (!key) return;
 
             if (!map[key]) {
@@ -179,6 +188,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                     identity: order.identity || '',
                     city: order.city || '',
                     isContactSuppressed: order.isContactSuppressed === true,
+                    contactSuppressedSkus: order.contactSuppressedSkus || [],
                     orders: [],
                     totalSpent: 0,
                     lastPurchase: null
@@ -212,11 +222,20 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
         return customers;
 
-    }, [data, selectedGestor, selectedZone, sortBy, sortDirection, dateRange, selectedSpecialView]); // Added dateRange, selectedSpecialView
+    }, [data, selectedGestor, selectedZone, sortBy, sortDirection, dateRange, selectedSpecialView, purchaseFilter.enabled]);
+
+    const comparisonCustomers = useMemo(() => {
+        const customers = filterCustomersByPurchaseActivity(filteredCustomers, searchPurchaseFilter, comparisonHistory);
+        if (!purchaseFilter.enabled) return customers;
+        return customers.sort((a, b) => {
+            const difference = sortBy === 'total' ? a.totalSpent - b.totalSpent : a.orders.length - b.orders.length;
+            return sortDirection === 'desc' ? -difference : difference;
+        });
+    }, [filteredCustomers, purchaseFilter, searchPurchaseFilter, comparisonHistory, sortBy, sortDirection]);
 
     // Filter customers by search term (Identidad, Nombre, Teléfono, SKU, Descripción)
     const searchedCustomers = useMemo(() => {
-        if (!customerSearchTerm.trim()) return filteredCustomers;
+        if (!customerSearchTerm.trim()) return comparisonCustomers;
 
         const terms = customerSearchTerm
             .toLowerCase()
@@ -224,9 +243,9 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
             .map(t => t.trim())
             .filter(Boolean);
 
-        if (terms.length === 0) return filteredCustomers;
+        if (terms.length === 0) return comparisonCustomers;
 
-        return filteredCustomers.filter(customer => {
+        return comparisonCustomers.filter(customer => {
             const name = (customer.name || '').toLowerCase();
             const identity = (customer.identity || '').toLowerCase();
             const phone = (customer.phone || '').toLowerCase();
@@ -245,7 +264,12 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
             return basicMatch || productMatch;
         });
-    }, [filteredCustomers, customerSearchTerm]);
+    }, [comparisonCustomers, customerSearchTerm]);
+
+    const exportableCustomers = useMemo(() => getExportableCustomers(searchedCustomers,
+        customerSearchTerm), [searchedCustomers, customerSearchTerm]);
+
+    useEffect(() => { onExportCountChange?.(exportableCustomers.length); }, [exportableCustomers.length, onExportCountChange]);
 
     // Calculate metrics
     const metrics = useMemo(() => {
@@ -291,7 +315,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         const history = {};
 
         data.forEach(order => {
-            const key = order.email || order.phone || order.name || order.customerName;
+            const key = getCustomerKey(order);
             if (!key) return;
 
             if (!history[key]) {
@@ -332,7 +356,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedGestor, customerSearchTerm, dateRange]);
+    }, [selectedGestor, customerSearchTerm, dateRange, purchaseFilter, selectedZone, selectedSpecialView]);
 
     const handleMonthClick = (customer) => (monthKey, monthData) => {
         // monthData contains { count, total, date, items? }
@@ -357,7 +381,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
         if (!searchedCustomers.length) return;
 
         // Flatten data for export
-        const exportData = searchedCustomers.filter(c => !c.isContactSuppressed).map(c => ({
+        const exportData = exportableCustomers.map(c => ({
             'Cliente': c.name,
             'Identidad': c.identity,
             'Email': c.email,
@@ -366,12 +390,20 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
             'Total Frecuencia': c.orders.length,
             'Total Comprado (L)': c.totalSpent,
             'Última Compra': c.lastPurchase ? format(new Date(c.lastPurchase), 'dd/MM/yyyy') : '-',
-            'Productos Comprados': [...new Set(c.orders.flatMap(o => (o.items || []).map(i => i.description || i.sku)))].join(', ')
+            'Productos Comprados': [...new Set(c.orders.flatMap(o => (o.items || []).map(i => i.description || i.sku)))].join(', '),
+            ...getPurchaseExportColumns(c, searchPurchaseFilter)
         }));
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Reporte Gestores");
+        appendReportFilters(wb, { purchaseFilter: searchPurchaseFilter, lastDate: lastDataDate, extraFilters: [
+            { Filtro: 'Gestor', Valor: selectedGestor === 'all' ? 'Todos en la selección' : selectedGestor },
+            { Filtro: 'Zona', Valor: selectedZone === 'all' ? 'Todas' : selectedZone },
+            { Filtro: 'Canal', Valor: selectedSpecialView || 'Todos' },
+            { Filtro: 'Búsqueda', Valor: customerSearchTerm || 'Sin búsqueda' },
+            ...(!purchaseFilter.enabled ? [{ Filtro: 'Rango de fechas', Valor: `${dateRange.start || 'Inicio'} — ${dateRange.end || 'Fin'}` }] : [])
+        ] });
 
         // Generate filename with timestamp
         const timestamp = format(new Date(), 'yyyyMMdd_HHmm');
@@ -379,6 +411,8 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
         XLSX.writeFile(wb, filename);
     };
+
+    useImperativeHandle(ref, () => ({ exportReport: handleExport }));
 
     return (
         <div className="space-y-6">
@@ -417,7 +451,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                 </button>
 
                 {/* Date Range Filter */}
-                <div className="flex flex-col gap-2">
+                {!purchaseFilter.enabled && <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                         <Calendar size={12} />
                         Rango de Fechas
@@ -433,12 +467,13 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                             onChange={(newEnd) => setDateRange({ ...dateRange, end: newEnd })}
                         />
                     </div>
-                </div>
+                </div>}
 
                 {/* Export Button */}
                 {searchedCustomers.length > 0 && (
                     <button
                         onClick={handleExport}
+                        disabled={exportableCustomers.length === 0}
                         className="flex items-center gap-2 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg hover:shadow-emerald-500/20 transition-all font-semibold text-sm ml-auto"
                     >
                         <Download size={18} />
@@ -623,6 +658,8 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
 
 
             {/* Main Content */}
+            <PurchaseActivityFilter value={searchPurchaseFilter} onChange={onPurchaseFilterChange} />
+
             <div className="flex-1 space-y-8 min-w-0">
 
                 {/* Metrics Cards */}
@@ -982,7 +1019,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                                             <MonthVisualizer
                                                                 orders={customer.orders}
                                                                 minDate={displayDateRange.min}
-                                                                maxDate={displayDateRange.max}
+                                                                maxDate={comparisonEndDate(purchaseFilter, displayDateRange.max)}
                                                                 onClick={handleMonthClick(customer)}
                                                             />
                                                         </td>
@@ -1050,7 +1087,9 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null })
                                 <Search size={36} className="mx-auto mb-3 text-slate-300 dark:text-slate-600" />
                                 <h3 className="text-lg font-bold text-slate-600 dark:text-slate-400 mb-1">Sin resultados</h3>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    No se encontraron clientes que coincidan con "{customerSearchTerm}".
+                                    {purchaseFilter.enabled
+                                        ? 'No hay clientes que cumplan los meses y la búsqueda seleccionados. Prueba otros meses o limpia el filtro.'
+                                        : `No se encontraron clientes que coincidan con "${customerSearchTerm}".`}
                                 </p>
                             </div>
                         )}

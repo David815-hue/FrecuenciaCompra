@@ -9,6 +9,8 @@ import ContributionGraph from './ContributionGraph';
 import RFMAnalysis from './RFMAnalysis';
 import GestoresAnalysis from './GestoresAnalysis';
 import GlassDatePicker from './GlassDatePicker';
+import PurchaseActivityFilter from './PurchaseActivityFilter';
+import { buildPurchaseHistory, comparisonEndDate, emptyPurchaseFilter, filterCustomersByPurchaseActivity, getCustomerKey, resolvePurchaseFilterForSearch } from '../utils/purchaseActivity';
 import { suppressContact } from '../utils/contactSuppressionUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -38,6 +40,14 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     const [suppressionNotes, setSuppressionNotes] = useState('');
     const [isSuppressing, setIsSuppressing] = useState(false);
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'rfm'
+    const [purchaseFilter, setPurchaseFilter] = useState(emptyPurchaseFilter);
+    const [gestoresExportCount, setGestoresExportCount] = useState(0);
+    const fullPurchaseHistory = useMemo(() => buildPurchaseHistory(data), [data]);
+    const searchPurchaseFilter = useMemo(() => resolvePurchaseFilterForSearch(purchaseFilter, data, appliedQuery),
+        [purchaseFilter, data, appliedQuery]);
+    const comparisonHistory = useMemo(() => searchPurchaseFilter.scope === 'product'
+        ? buildPurchaseHistory(data, searchPurchaseFilter.productQuery) : fullPurchaseHistory,
+        [data, fullPurchaseHistory, searchPurchaseFilter.scope, searchPurchaseFilter.productQuery]);
 
     // New filter states
     const [selectedCities, setSelectedCities] = useState([]);
@@ -137,12 +147,12 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     const customers = useMemo(() => {
         const map = {};
         filteredData.forEach(order => {
-            const key = order.email || order.phone || order.name;
+            const key = getCustomerKey(order);
             if (!key) return;
 
             if (!map[key]) {
                 map[key] = {
-                    name: order.name,
+                    name: order.customerName || order.name || 'Sin nombre',
                     email: order.email,
                     phone: order.phone,
                     identity: order.identity || 'No se encontró',
@@ -168,12 +178,12 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     const allCustomers = useMemo(() => {
         const map = {};
         data.forEach(order => {
-            const key = order.email || order.phone || order.name;
+            const key = getCustomerKey(order);
             if (!key) return;
 
             if (!map[key]) {
                 map[key] = {
-                    name: order.name,
+                    name: order.customerName || order.name || 'Sin nombre',
                     email: order.email,
                     phone: order.phone,
                     identity: order.identity || 'No se encontró',
@@ -224,11 +234,11 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
     // 3. Apply Filters (City, Quantity, Recurring)
     const displayList = useMemo(() => {
-        if (!appliedQuery || appliedQuery.trim().length < 3) {
+        if ((!appliedQuery || appliedQuery.trim().length < 3) && !purchaseFilter.enabled) {
             return [];
         }
 
-        const hasDateFilter = Boolean(dateRange.start || dateRange.end);
+        const hasDateFilter = !purchaseFilter.enabled && Boolean(dateRange.start || dateRange.end);
         const start = hasDateFilter ? new Date(dateRange.start || '1900-01-01') : null;
         const end = hasDateFilter ? new Date(dateRange.end || '2999-12-31') : null;
 
@@ -237,7 +247,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
         // If date range is active, trim each customer's orders so all table metrics
         // (frequency, order count, totals) are calculated from the filtered period.
-        let list = customers
+        let list = filterCustomersByPurchaseActivity(customers, searchPurchaseFilter, comparisonHistory)
             .map(c => {
                 const filteredOrders = hasDateFilter
                     ? c.orders.filter(order => {
@@ -298,7 +308,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
         }
 
         return list;
-    }, [customers, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, topSKUs, appliedQuery, dateRange]);
+    }, [customers, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, topSKUs, appliedQuery, dateRange, purchaseFilter, searchPurchaseFilter, comparisonHistory]);
 
     // 5. Apply Sorting
     const sortedList = useMemo(() => {
@@ -341,7 +351,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [appliedQuery, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, dateRange]);
+    }, [appliedQuery, selectedCities, minQuantity, onlyRecurring, topSKUsFilter, dateRange, purchaseFilter]);
 
     // 4. Calculate Global Date Range
     const displayDateRange = useMemo(() => {
@@ -371,6 +381,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
     }, [displayList]);
 
     const handleClearAllFilters = () => {
+        setPurchaseFilter(emptyPurchaseFilter());
         setQuery('');
         setAppliedQuery('');
         setOnlyRecurring(false);
@@ -439,7 +450,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
             onRemove: () => setMinQuantity('')
         });
     }
-    if (dateRange.start || dateRange.end) {
+    if (!purchaseFilter.enabled && (dateRange.start || dateRange.end)) {
         activeFilterChips.push({
             key: 'dateRange',
             label: `Fecha: ${dateRange.start || 'inicio'} - ${dateRange.end || 'hoy'}`,
@@ -456,11 +467,19 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
 
     const handleExport = () => {
-        if (viewMode === 'gestores' && gestoresRef.current) {
-            gestoresRef.current.exportReport();
-        } else {
-            exportToExcel(displayList, appliedQuery);
+        if (viewMode === 'gestores') {
+            gestoresRef.current?.exportReport();
+            return;
         }
+        exportToExcel(sortedList, appliedQuery, { purchaseFilter: searchPurchaseFilter, lastDate: fullPurchaseHistory.lastDate,
+            extraFilters: [
+                { Filtro: 'Vista', Valor: viewMode === 'rfm' ? 'RFM' : 'Tabla' },
+                { Filtro: 'Búsqueda', Valor: appliedQuery || 'Sin búsqueda' },
+                { Filtro: 'Ciudad', Valor: selectedCities.join(', ') || 'Todas' },
+                { Filtro: 'Cantidad mínima', Valor: minQuantity || 'Sin mínimo' },
+                { Filtro: 'Solo recurrentes', Valor: onlyRecurring ? 'Sí' : 'No' },
+                ...(!purchaseFilter.enabled ? [{ Filtro: 'Rango de fechas', Valor: `${dateRange.start || 'Inicio'} — ${dateRange.end || 'Fin'}` }] : [])
+            ] });
     };
 
     const handleSuppressSelectedCustomer = async () => {
@@ -548,7 +567,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
 
                     <button
                         onClick={handleExport}
-                        disabled={viewMode !== 'gestores' && displayList.length === 0}
+                        disabled={viewMode === 'gestores' ? gestoresExportCount === 0 : displayList.length === 0}
                         className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-full shadow-lg shadow-slate-900/20 dark:shadow-black/40 hover:bg-slate-800 dark:hover:bg-slate-700 hover:-translate-y-0.5 transition-all text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                     >
                         <Download size={16} />
@@ -569,7 +588,9 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             </span> de Frecuencia
                         </motion.h1>
                         <p className="text-slate-500 dark:text-slate-400 font-medium">
-                            {appliedQuery.length >= 3 ? (
+                            {viewMode === 'gestores' ? (
+                                <span>Clientes por gestor, zona o canal</span>
+                            ) : appliedQuery.length >= 3 || purchaseFilter.enabled ? (
                                 <motion.span
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
@@ -853,7 +874,12 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                 </div>
 
                 {/* Advanced Filters Section */}
-                {viewMode !== 'gestores' && appliedQuery.length >= 3 && (
+                {viewMode !== 'gestores' && (
+                    <div className="px-4">
+                        <PurchaseActivityFilter value={searchPurchaseFilter} onChange={setPurchaseFilter} />
+                    </div>
+                )}
+                {viewMode !== 'gestores' && (appliedQuery.length >= 3 || purchaseFilter.enabled) && (
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -890,7 +916,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                         </div>
 
                         {/* Date Range Filter */}
-                        <div className="flex flex-col gap-2 w-full md:w-auto">
+                        {!purchaseFilter.enabled && <div className="flex flex-col gap-2 w-full md:w-auto">
                             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                 <Calendar size={12} />
                                 Rango de Fechas
@@ -906,7 +932,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                     onChange={(newEnd) => setDateRange({ ...dateRange, end: newEnd })}
                                 />
                             </div>
-                        </div>
+                        </div>}
 
                         {/* Quantity Filter */}
                         <div className="flex flex-col gap-2 w-full md:w-auto">
@@ -1176,7 +1202,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                         <MonthVisualizer
                                                             orders={customer.orders}
                                                             minDate={displayDateRange.min}
-                                                            maxDate={displayDateRange.max}
+                                                            maxDate={comparisonEndDate(purchaseFilter, displayDateRange.max)}
                                                             onClick={handleMonthClick(customer)}
                                                         />
                                                         <button
@@ -1204,10 +1230,12 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                                                             <Search size={40} className="text-slate-200 dark:text-slate-600" />
                                                         </div>
 
-                                                        {appliedQuery.length >= 3 ? (
+                                                        {appliedQuery.length >= 3 || purchaseFilter.enabled ? (
                                                             <>
                                                                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No se encontraron resultados</h3>
-                                                                <p className="text-slate-500 dark:text-slate-400">Intenta buscar con otro nombre, SKU o número de teléfono.</p>
+                                                                <p className="text-slate-500 dark:text-slate-400">{purchaseFilter.enabled
+                                                                    ? 'Prueba otros meses o limpia el filtro de recompra.'
+                                                                    : 'Intenta buscar con otro nombre, SKU o número de teléfono.'}</p>
                                                             </>
                                                         ) : (
                                                             <>
@@ -1387,6 +1415,11 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
                             data={data}
                             isRestricted={isRestricted}
                             restrictedUser={isRestricted ? userName : null}
+                            purchaseFilter={purchaseFilter}
+                            onPurchaseFilterChange={setPurchaseFilter}
+                            fullPurchaseHistory={fullPurchaseHistory}
+                            lastDataDate={fullPurchaseHistory.lastDate}
+                            onExportCountChange={setGestoresExportCount}
                         />
                     </motion.div>
                 )}

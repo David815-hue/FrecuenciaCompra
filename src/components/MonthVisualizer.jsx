@@ -3,6 +3,12 @@ import { createPortal } from 'react-dom';
 import { format, eachMonthOfInterval, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getPurchaseDateKey } from '../utils/purchaseActivity';
+
+const purchaseCalendarDate = value => {
+    const key = getPurchaseDateKey(value);
+    return key ? new Date(`${key}T12:00:00`) : new Date(NaN);
+};
 
 
 
@@ -22,14 +28,14 @@ const MonthVisualizer = ({ orders, minDate, maxDate, onClick }) => {
 
     const hasOlderOrders = useMemo(() => {
         return orders.some(order => {
-            const d = new Date(order.orderDate);
+            const d = purchaseCalendarDate(order.orderDate);
             return !isNaN(d.getTime()) && d < startDate;
         });
     }, [orders, startDate]);
 
     const monthData = {};
     orders.forEach(order => {
-        const d = new Date(order.orderDate);
+        const d = purchaseCalendarDate(order.orderDate);
         if (isNaN(d.getTime())) return; // Skip invalid dates
 
         const key = format(d, 'yyyy-MM');

@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { getGestorInfo } from '../config/gestores';
 import * as XLSX from 'xlsx';
+import { fetchAllCustomers } from './supabaseUtils';
 
 const LOGIN_URL = "https://api.puntof4rm4.com/api/auth/signin_cs";
 const ORDERS_URL = "https://api.puntof4rm4.com/api/order/get_filter/?cur_page=1&per_page=5000&sort=-order_code";
@@ -234,11 +235,8 @@ export const runAutomaticSync = async ({ startDate, endDate, isIncremental, onPr
 
         // Step 5: Fetch existing database customers
         onProgress({ step: 5, text: "Cargando clientes existentes desde la nube..." });
-        const { data: existingCustomers, error: selectErr } = await supabase
-            .from('customers')
-            .select('*');
+        const existingCustomers = await fetchAllCustomers('*');
 
-        if (selectErr) throw selectErr;
 
         // Build mapping of existing orders in database for January/February 2026 rule
         const existingOrdersMap = new Map(); // orderId -> orderObject

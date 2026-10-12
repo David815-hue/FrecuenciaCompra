@@ -117,7 +117,7 @@ export const saveCustomersToSupabase = async (orders) => {
 export const fetchAllCustomers = async (columns = '*') => {
     let allData = [];
     let from = 0;
-    const pageSize = 5000;
+    const pageSize = 1000;
     let hasMore = true;
 
     while (hasMore) {
@@ -126,7 +126,7 @@ export const fetchAllCustomers = async (columns = '*') => {
             .from(TABLE_NAME)
             .select(columns)
             .range(from, to)
-            .order('created_at', { ascending: false });
+            .order('id', { ascending: true });
 
         if (error) throw error;
 
@@ -290,13 +290,46 @@ export const formatLatestOrderDate = (date) => {
     return `${datePart} ${hours}:${String(minutes).padStart(2, '0')} ${ampm}`;
 };
 
+export const extractLatestOrderDate = (orders) => {
+    let latestDate = null;
+    let latestDateRaw = null;
+
+    (orders || []).forEach(order => {
+        if (order.orderDate) {
+            const parsed = parseDatabaseDate(order.orderDate);
+            if (parsed && !isNaN(parsed.getTime())) {
+                if (!latestDate || parsed > latestDate) {
+                    latestDate = parsed;
+                    latestDateRaw = order.orderDate;
+                }
+            }
+        }
+    });
+
+    if (latestDate && latestDateRaw) {
+        latestDate.rawStr = latestDateRaw;
+    }
+    return latestDate;
+};
+
 /**
  * Get the latest order date from Supabase
  */
 export const getLatestOrderDate = async () => {
     try {
         // Fetch only customers' orders column, using paginated helper
-        const customers = await fetchAllCustomers('orders');
+        // Fast path: Supabase RPC (calculated directly in Postgres in ~30ms)
+        const { data: rpcDate, error: rpcError } = await supabase.rpc('get_latest_order_date');
+        if (!rpcError && rpcDate) {
+            const parsed = parseDatabaseDate(rpcDate);
+            if (parsed) {
+                parsed.rawStr = rpcDate;
+                console.log(`📅 Latest Albatross order date in Supabase: ${rpcDate}`);
+                return parsed;
+            }
+        }
+
+        const customers = await fetchAllCustomers('orders', 1000);
 
         let latestDate = null;
         let latestDateRaw = null;

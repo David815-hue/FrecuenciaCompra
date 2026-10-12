@@ -12,7 +12,7 @@ import ContactSuppressionPanel from './components/ContactSuppressionPanel';
 import QuickSyncControl from './components/QuickSyncControl';
 import { useTheme } from './hooks/useTheme';
 import { parseExcel, cleanAlbatrossData, processRMSData, joinDatasets, filterDataByDate } from './utils/dataProcessing';
-import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, formatLatestOrderDate, getLatestOrderDate } from './utils/supabaseUtils';
+import { saveCustomersToFirestore, saveCustomersToFirestoreIncremental, loadCustomersFromFirestore, clearAllData, formatLatestOrderDate, getLatestOrderDate, extractLatestOrderDate } from './utils/supabaseUtils';
 import { getCurrentUser, onAuthStateChange, logout } from './utils/authUtils';
 import { runAutomaticSync } from './utils/albatrossService';
 import { LogOut, User, Shield, Sparkles, Ban } from 'lucide-react';
@@ -117,10 +117,8 @@ function App() {
       setSyncStatus(prev => ({ ...prev, isLoading: true, error: null }));
     }
     try {
-      const [result, latestDate] = await Promise.all([
-        loadCustomersFromFirestore(),
-        getLatestOrderDate()
-      ]);
+      const result = await loadCustomersFromFirestore();
+      const latestDate = result.success && result.customers.length > 0 ? extractLatestOrderDate(result.customers) : await getLatestOrderDate();
       setLatestOrderDate(latestDate);
       if (result.success && result.customers.length > 0) {
         setData(result.customers);

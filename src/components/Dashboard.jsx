@@ -11,6 +11,7 @@ import GestoresAnalysis from './GestoresAnalysis';
 import GlassDatePicker from './GlassDatePicker';
 import PurchaseActivityFilter from './PurchaseActivityFilter';
 import { buildPurchaseHistory, comparisonEndDate, emptyPurchaseFilter, filterCustomersByPurchaseActivity, getCustomerKey, resolvePurchaseFilterForSearch } from '../utils/purchaseActivity';
+import { buildLastGestorIndex } from '../utils/excelExport';
 import { suppressContact } from '../utils/contactSuppressionUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -472,6 +473,7 @@ const Dashboard = ({ data, onBack, userRole = 'admin', userName, isRestricted = 
             return;
         }
         exportToExcel(sortedList, appliedQuery, { purchaseFilter: searchPurchaseFilter, lastDate: fullPurchaseHistory.lastDate,
+            lastGestorByCustomer: buildLastGestorIndex(data),
             extraFilters: [
                 { Filtro: 'Vista', Valor: viewMode === 'rfm' ? 'RFM' : 'Tabla' },
                 { Filtro: 'Búsqueda', Valor: appliedQuery || 'Sin búsqueda' },

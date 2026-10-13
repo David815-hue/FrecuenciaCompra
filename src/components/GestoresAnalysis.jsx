@@ -11,7 +11,7 @@ import ContributionGraph from './ContributionGraph';
 import GlassDatePicker from './GlassDatePicker';
 import PurchaseActivityFilter from './PurchaseActivityFilter';
 import { buildPurchaseHistory, comparisonEndDate, filterCustomersByPurchaseActivity, getCustomerKey, getPurchaseExportColumns, resolvePurchaseFilterForSearch } from '../utils/purchaseActivity';
-import { appendReportFilters, getExportableCustomers } from '../utils/excelExport';
+import { appendReportFilters, buildLastGestorIndex, getExportableCustomers, getLastGestorExportColumns } from '../utils/excelExport';
 
 const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null, ref,
     purchaseFilter, onPurchaseFilterChange, fullPurchaseHistory, lastDataDate, onExportCountChange }) => {
@@ -379,6 +379,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null, r
     // Export Handler
     const handleExport = () => {
         if (!searchedCustomers.length) return;
+        const lastGestorByCustomer = buildLastGestorIndex(data);
 
         // Flatten data for export
         const exportData = exportableCustomers.map(c => ({
@@ -387,6 +388,7 @@ const GestoresAnalysis = ({ data, isRestricted = false, restrictedUser = null, r
             'Email': c.email,
             'Teléfono': c.phone,
             'Ciudad': c.city,
+            ...getLastGestorExportColumns(c, lastGestorByCustomer),
             'Total Frecuencia': c.orders.length,
             'Total Comprado (L)': c.totalSpent,
             'Última Compra': c.lastPurchase ? format(new Date(c.lastPurchase), 'dd/MM/yyyy') : '-',

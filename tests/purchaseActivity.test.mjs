@@ -5,7 +5,7 @@ import { buildPurchaseHistory, emptyPurchaseFilter, filterCustomersByPurchaseAct
     getCustomerKey, getPurchaseMonth, previousMonthFilter, purchaseFilterError,
     resolvePurchaseFilterForSearch } from '../src/utils/purchaseActivity.js';
 import { buildFrequencyWorkbook, filterData } from '../src/utils/dataProcessing.js';
-import { getExportableCustomers } from '../src/utils/excelExport.js';
+import { buildLastGestorIndex, getExportableCustomers, getLastGestorExportColumns } from '../src/utils/excelExport.js';
 
 const order = (name, date, sku = '100', gestor = 'Ana', channel = 'POS') => ({
     name, customerName: name, email: `${name}@example.test`, phone: '', orderDate: date,
@@ -92,7 +92,7 @@ test('selecciones incompletas, contradictorias o producto vacío no dan falsos r
     }
 });
 
-test('Excel sin búsqueda incluye clientes filtrados, SKU y explicación de los meses', () => {
+test('Excel sin búsqueda incluye clientes filtrados, último gestor y explicación de los meses sin columnas por SKU', () => {
     const history = buildPurchaseHistory(data);
     const filtered = filterCustomersByPurchaseActivity(customersFrom(data), quick, history);
     const workbook = buildFrequencyWorkbook(filtered, '', { purchaseFilter: quick, lastDate: history.lastDate });
@@ -102,7 +102,10 @@ test('Excel sin búsqueda incluye clientes filtrados, SKU y explicación de los 
     assert.match(rows[0]['Compraron en'], /septiembre de 2026/);
     assert.match(rows[0]['Sin compras en'], /octubre de 2026/);
     assert.equal(rows[0]['Última compra del criterio'], '01/09/2026');
-    assert.ok(Object.keys(rows[0]).some(key => key.endsWith(' - 100') && rows[0][key] === 2));
+    assert.equal(rows[0]['Último gestor'], 'Ana');
+    assert.deepEqual(Object.keys(rows[0]), ['Cliente', 'Correo electrónico del cliente', 'Celular del cliente',
+        'Identidad', 'Último gestor', 'Total Gastado', 'Compraron en', 'Sin compras en',
+        'Criterio de recompra', 'Última compra del criterio']);
     assert.ok(recovered.Sheets.Filtros);
 });
 
@@ -155,4 +158,47 @@ test('cada vista usa su propia búsqueda aunque comparta los meses', () => {
     const cohort = customersFrom(data.filter(order => order.gestorName === 'Ana'));
     const result = filterCustomersByPurchaseActivity(cohort, gestoresFilter, buildPurchaseHistory(data, '100'));
     assert.deepEqual(result.map(c => c.name), ['Pendiente', 'OtroProducto', 'SinContacto']);
+});
+
+test('Excel no crea columnas por SKU aunque el cliente tenga varios productos y meses', () => {
+    const records = [order('Cliente', '2026-08-01', '100'), order('Cliente', '2026-09-02', '200')];
+    const workbook = buildFrequencyWorkbook(customersFrom(records), '');
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets.Reporte);
+    assert.equal(rows.length, 1);
+    assert.deepEqual(Object.keys(rows[0]), ['Cliente', 'Correo electrónico del cliente', 'Celular del cliente',
+        'Identidad', 'Último gestor', 'Total Gastado']);
+    assert.equal(rows[0]['Total Gastado'], '100.00');
+});
+
+test('último gestor usa todo el historial, aunque la compra más reciente no coincida con el SKU o mes filtrado', () => {
+    const records = [order('Cliente', '2026-10-03', '200', 'Bea'), order('Cliente', '2026-09-01', '100', 'Ana')];
+    const filter = { ...quick, scope: 'product', productQuery: '100' };
+    const filtered = filterCustomersByPurchaseActivity(customersFrom(filterData(records, '100')), filter,
+        buildPurchaseHistory(records, '100'));
+    const lastGestorByCustomer = buildLastGestorIndex(records);
+    const workbook = buildFrequencyWorkbook(filtered, '100', { purchaseFilter: filter, lastGestorByCustomer });
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets.Reporte);
+    assert.equal(rows[0]['Último gestor'], 'Bea');
+    assert.equal(rows[0]['Total Gastado'], '50.00');
+    // Same column helper used by the Gestores report, even when exporting Ana's customers.
+    assert.equal(getLastGestorExportColumns(filtered[0], lastGestorByCustomer)['Último gestor'], 'Bea');
+});
+
+test('último gestor respeta hora, año y fechas válidas sin depender del orden de los pedidos', () => {
+    const records = [order('Cliente', '2026-10-01T17:00:00Z', '100', 'Bea'),
+        order('Cliente', '2026-10-01T12:00:00Z', '100', 'Ana'),
+        order('Cliente', '31/02/2027', '100', 'Fecha inválida'),
+        order('Cliente', '2025-12-31', '100', 'Anterior')];
+    const columns = getLastGestorExportColumns(customersFrom(records)[0], buildLastGestorIndex(records));
+    assert.equal(columns['Último gestor'], 'Bea');
+});
+
+test('compras sin gestor no borran la última atención identificada y los clientes sin atención tienen un texto claro', () => {
+    const records = [order('Cliente', '2026-09-01', '100', 'Ana'),
+        order('Cliente', '2026-10-02', '100', ''), order('Cliente', '2026-10-03', '100', 'Sin Asignar'),
+        order('SinGestor', '2026-09-04', '100', null)];
+    const index = buildLastGestorIndex(records);
+    const customers = customersFrom(records);
+    assert.equal(getLastGestorExportColumns(customers[0], index)['Último gestor'], 'Ana');
+    assert.equal(getLastGestorExportColumns(customers[1], index)['Último gestor'], 'Sin gestor registrado');
 });

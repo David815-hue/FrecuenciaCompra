@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { getGestorInfo } from '../config/gestores.js';
-import { getPurchaseExportColumns, getPurchaseMonth, orderMatchesProducts } from './purchaseActivity.js';
-import { appendReportFilters, getExportableCustomers } from './excelExport.js';
+import { getPurchaseExportColumns, orderMatchesProducts } from './purchaseActivity.js';
+import { appendReportFilters, buildLastGestorIndex, getExportableCustomers, getLastGestorExportColumns } from './excelExport.js';
 
 // Helper to parse Excel file to JSON
 export const parseExcel = (file) => {
@@ -213,105 +213,22 @@ export const filterDataByDate = (data, cutoffDate) => {
     return filtered;
 };
 
-// Export to Excel with Monthly SKU Breakdown
+// One row per customer, without expanding products into individual columns.
 export const buildFrequencyWorkbook = (customers, activeQuery, options = {}) => {
-    // Parse active query to get filtered SKUs
-    const terms = activeQuery ? activeQuery.split(/[\n,]+/).map(t => t.trim().toLowerCase()).filter(Boolean) : [];
     const contactableCustomers = getExportableCustomers(customers,
         options.purchaseFilter?.enabled && options.purchaseFilter.scope === 'product'
             ? [activeQuery, options.purchaseFilter.productQuery].filter(Boolean).join(',') : activeQuery);
-
-    // Step 1: Calculate global date range and identify all unique SKUs in filter
-    let minMonth = '';
-    let maxMonth = '';
-    const skuSet = new Set();
-
-    contactableCustomers.forEach(customer => {
-        customer.orders.forEach(order => {
-            const month = getPurchaseMonth(order.orderDate);
-            if (month) {
-                if (!minMonth || month < minMonth) minMonth = month;
-                if (month > maxMonth) maxMonth = month;
-            }
-
-            // Collect SKUs that match the filter
-            if (order.items) {
-                order.items.forEach(item => {
-                    if (item.sku && (terms.length === 0 || terms.some(term => String(item.sku).toLowerCase().includes(term)
-                        || String(item.description || '').toLowerCase().includes(term)))) {
-                        skuSet.add(String(item.sku));
-                    }
-                });
-            }
-        });
-    });
-
-    // If no date range found, use current month
-    if (!minMonth) {
-        minMonth = getPurchaseMonth(new Date());
-        maxMonth = minMonth;
-    }
-
-    // Step 2: Generate list of months
-    const months = [];
-    const minDate = new Date(`${minMonth}-01T12:00:00Z`);
-    const maxDate = new Date(`${maxMonth}-01T12:00:00Z`);
-
-    let current = new Date(minDate);
-    while (current <= maxDate) {
-        months.push({
-            key: current.toISOString().slice(0, 7),
-            label: `${current.toLocaleDateString('es-HN', { month: 'short', timeZone: 'UTC' })} ${String(current.getUTCFullYear()).slice(2)}`
-        });
-        current.setUTCMonth(current.getUTCMonth() + 1);
-    }
-
-    const skus = Array.from(skuSet);
-
-    // Step 3: Build rows
-    const rows = [];
-
-    contactableCustomers.forEach(customer => {
-        // Aggregate sales by month-SKU for this customer
-        const salesMap = {}; // { "2025-07-SKU123": 5, "2025-08-SKU456": 3 }
-
-        customer.orders.forEach(order => {
-            const monthKey = getPurchaseMonth(order.orderDate);
-            if (!monthKey) return;
-
-            if (order.items) {
-                order.items.forEach(item => {
-                    // Only count items that match the filter
-                    if (terms.length === 0 || terms.some(term => String(item.sku || '').toLowerCase().includes(term)
-                        || String(item.description || '').toLowerCase().includes(term))) {
-                        const key = `${monthKey}-${item.sku}`;
-                        salesMap[key] = (salesMap[key] || 0) + (item.quantity || 0);
-                    }
-                });
-            }
-        });
-
-        // Build row object
-        const row = {
-            'Cliente': customer.name || 'Sin nombre',
-            'Correo electrónico del cliente': customer.email || '',
-            'Celular del cliente': customer.phone || '',
-            'Identidad': customer.identity || '',
-            'Total Gastado': customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toFixed(2),
-            ...getPurchaseExportColumns(customer, options.purchaseFilter)
-        };
-
-        // Add dynamic columns for each month-SKU combination
-        months.forEach(month => {
-            skus.forEach(sku => {
-                const key = `${month.key}-${sku}`;
-                const columnName = `${month.label} - ${sku}`;
-                row[columnName] = salesMap[key] || 0;
-            });
-        });
-
-        rows.push(row);
-    });
+    const lastGestorByCustomer = options.lastGestorByCustomer
+        || buildLastGestorIndex((customers || []).flatMap(customer => customer.orders || []));
+    const rows = contactableCustomers.map(customer => ({
+        'Cliente': customer.name || 'Sin nombre',
+        'Correo electrónico del cliente': customer.email || '',
+        'Celular del cliente': customer.phone || '',
+        'Identidad': customer.identity || '',
+        ...getLastGestorExportColumns(customer, lastGestorByCustomer),
+        'Total Gastado': customer.orders.reduce((acc, o) => acc + (parseFloat(o.totalAmount) || 0), 0).toFixed(2),
+        ...getPurchaseExportColumns(customer, options.purchaseFilter)
+    }));
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
@@ -322,5 +239,5 @@ export const buildFrequencyWorkbook = (customers, activeQuery, options = {}) => 
 
 export const exportToExcel = (customers, activeQuery, options = {}) => {
     XLSX.writeFile(buildFrequencyWorkbook(customers, activeQuery, options),
-        options.purchaseFilter?.enabled ? 'Reporte_Clientes_Sin_Recompra.xlsx' : 'Reporte_Frecuencia_SKU.xlsx');
+        options.purchaseFilter?.enabled ? 'Reporte_Clientes_Sin_Recompra.xlsx' : 'Reporte_Frecuencia.xlsx');
 };

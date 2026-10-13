@@ -1,5 +1,28 @@
 import * as XLSX from 'xlsx';
-import { getProductTerms, getPurchaseExportMetadata, orderMatchesProducts } from './purchaseActivity.js';
+import { getCustomerKey, getProductTerms, getPurchaseDateKey, getPurchaseExportMetadata, orderMatchesProducts } from './purchaseActivity.js';
+
+// Find the most recent identified gestor across all purchases, independently
+// of the report's product, month, zone or gestor filters.
+export const buildLastGestorIndex = data => {
+    const index = new Map();
+    for (const order of data || []) {
+        const key = getCustomerKey(order);
+        const date = getPurchaseDateKey(order.orderDate);
+        const name = String(order.gestorName || '').trim();
+        if (!key || !date || !name || /^sin\s*(asignar|gestor|gestora)$/i.test(name)) continue;
+        const hasTime = order.orderDate instanceof Date || /[T ]\d{2}:\d{2}/.test(String(order.orderDate));
+        const time = hasTime ? new Date(order.orderDate).getTime() : 0;
+        const previous = index.get(key);
+        if (!previous || date > previous.date || (date === previous.date && time >= previous.time)) {
+            index.set(key, { name, date, time });
+        }
+    }
+    return index;
+};
+
+export const getLastGestorExportColumns = (customer, index) => ({
+    'Último gestor': index.get(getCustomerKey(customer))?.name || 'Sin gestor registrado'
+});
 
 export const getExportableCustomers = (customers, query = '') => {
     const terms = getProductTerms(query);

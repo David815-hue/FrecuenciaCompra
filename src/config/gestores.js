@@ -17,9 +17,7 @@ export const GESTORES_MAP = {
     'callcentersap2@puntofarma.hn': { gestor: 'Paola Melendez', zona: 'Norte' },
     'jsanchez@puntofarma.hn': { gestor: 'Yohana Sanchez', zona: 'Norte' },
     'callcentersap3@puntofarma.hn': { gestor: 'Pamela Maldonado', zona: 'Norte' },
-
-
-
+    'callcentersap4@puntofarma.hn': { gestor: 'Cesar Mejia', zona: 'Norte' }
 };
 
 // Obtener información del gestor por email
